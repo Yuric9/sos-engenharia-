@@ -1,11 +1,13 @@
 import { WorkOrder, StatusOS } from '../types';
+import chunk1 from './history/chunk1';
+import chunk2 from './history/chunk2';
+import chunk3 from './history/chunk3';
+import chunk4 from './history/chunk4';
+import chunk5 from './history/chunk5';
+import chunk6 from './history/chunk6';
 
 type LegacyRow=[number,number,string,number,string,string,string,string,string,string,string];
-
-const legacyRows:LegacyRow[]=[[2025,3,"2025-07-30",84,"Parque Maria Pires Perilo","Instalação de 3 refletores de 100w","sim","","","03- refletor; 1 fita isolante; 5 metros de cabo pp 2x2,5","sim"],[2025,4,"2025-08-04",85,"Sindicato Rural de Trindade","Instalação de divisoria naval; troca de vidros e janelas,instação portas blidex, manutenção de calçada interna em torno da edificação","sim","","","",""],[2025,5,"2025-08-05",86,"Condominio beija Flor","Manutenção na porta da despensa, 01 interruptor com tecla e tomada\n01 torneira para lavatório\n02 acabamentos de registro do chuveiro (foto do antes anexada)","sim","","","",""],[2025,6,"2025-08-05",87,"AV. das Palmas, ST Palmares","Manutenção da rede elétrica no Ginásio Municipal Antônio Lopes Fonte Boa","sim","","","15m de cabo pp3x4mm; 02 fita isolante; 02 disjuntor trifasico de 70A; 50m de cabo frexivel 2,5 preto e 50m 2,5 azul; 50m cabo 1,5mm branco; 08 paflon; 08 lampada de 30w; 50metro cabo flexivel 2,5 verde","sim"],[2025,7,"2025-08-05",88,"R. Prof. Carlos Dairel, Quadra 10 - Lote 32 - St. Cristina I, Trindade","Manutenção na caixa de gordura, entupimento, CRAS Marcelo Barbosa.","sim","","","",""],[2025,8,"2025-08-05",89,"Rua Rocha Lima N° 334, Centro.","Instalação de uma divisória de blindex, com porta de correr, na nova sede da Biblioteca Municipal Padre João Cardoso de Souza.","não","","Renam repassou que não consegue atender no momento, esses serviços são tercezirados.","",""]];
-
-// Demais registros históricos são carregados do arquivo convertido em tempo de build.
-// Este arquivo mantém a estrutura e a regra de normalização; o restante do conjunto será acrescentado na próxima etapa da importação.
+const legacyRows:LegacyRow[]=[...chunk1,...chunk2,...chunk3,...chunk4,...chunk5,...chunk6] as LegacyRow[];
 
 const clean=(v:string='')=>v.trim();
 function serviceType(text:string){
@@ -56,6 +58,24 @@ export const historicalOrders:WorkOrder[]=legacyRows.map(([year,line,date,number
  const st=status(clean(attended),clean(delivered),clean(obs));
  const [estimatedAmount,estimatedUnit]=effort(clean(hours));
  const openedAt=date||`${year}-01-01`;
- const observations=[`Importado da planilha original • Ano ${year} • Linha ${line}.`,attended?`Atendido original: ${clean(attended)}.`:'',delivered?`Entregue original: ${clean(delivered)}.`:'',hours?`Horas/Diárias original: ${clean(hours)}.`:'',obs?`Observação original: ${clean(obs)}`:''].filter(Boolean).join('\n');
- return {id:year*10000+line,number,openedAt,secretaria:secretaria(local,service),unidade:local||'Local não informado',local,serviceType:serviceType(service),description:service||'Registro histórico sem descrição',team:'Histórico importado',workforceOrigin:'Não informado no histórico',priority:'MEDIA',deadline:openedAt,estimatedAmount,estimatedUnit,status:st,progress:progress[st],attended:['ATENDIDA','CONCLUIDA','EM_ANDAMENTO'].includes(st),archived:false,materialsSummary:materials||'',notesCount:obs?1:0,attachmentsCount:0,officeDocument:`HIST-${year}-L${String(line).padStart(3,'0')}`,overdueDays:0,observations,attachments:[]};
+ const observations=[
+  `Importado da planilha original • Ano ${year} • Linha ${line}.`,
+  attended?`Atendido original: ${clean(attended)}.`:'',
+  delivered?`Entregue original: ${clean(delivered)}.`:'',
+  hours?`Horas/Diárias original: ${clean(hours)}.`:'',
+  obs?`Observação original: ${clean(obs)}`:''
+ ].filter(Boolean).join('\n');
+ return {
+  id:year*10000+line,number,openedAt,secretaria:secretaria(local,service),
+  unidade:local||'Local não informado',local,serviceType:serviceType(service),
+  description:service||'Registro histórico sem descrição',team:'Histórico importado',
+  workforceOrigin:'Não informado no histórico',priority:'MEDIA',deadline:openedAt,
+  estimatedAmount,estimatedUnit,status:st,progress:progress[st],
+  attended:['ATENDIDA','CONCLUIDA','EM_ANDAMENTO'].includes(st),archived:false,
+  materialsSummary:materials||'',notesCount:obs?1:0,attachmentsCount:0,
+  officeDocument:`HIST-${year}-L${String(line).padStart(3,'0')}`,overdueDays:0,
+  observations,attachments:[]
+ };
 });
+
+export const historicalImportSummary={total:historicalOrders.length,years:[2025,2026]};
