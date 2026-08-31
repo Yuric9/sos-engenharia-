@@ -11,10 +11,15 @@ import { loadOrders, normalizeOrders, nextOrderNumber, saveOrders } from './lib/
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
 type View='dashboard'|'new'|'edit'|'cadastros'|'usuarios';
+const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
+function ensureExecutiveContractor(c:Catalogs):Catalogs{
+ if(c.equipes.some(x=>x.name===RP_NAME))return c;
+ return {...c,equipes:[...c.equipes,{id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'}]};
+}
 export default function App(){
  const [session,setSession]=useState<AppUser|null>(()=>currentUser());
  const [orders,setOrders]=useState<WorkOrder[]>(()=>normalizeOrders(loadOrders()));
- const [catalogs,setCatalogs]=useState<Catalogs>(()=>loadCatalogs());
+ const [catalogs,setCatalogs]=useState<Catalogs>(()=>ensureExecutiveContractor(loadCatalogs()));
  const [users,setUsers]=useState<AppUser[]>(()=>loadUsers());
  const [selected,setSelected]=useState<number|null>(null); const [view,setView]=useState<View>('dashboard');
  useEffect(()=>saveOrders(orders),[orders]); useEffect(()=>saveCatalogs(catalogs),[catalogs]); useEffect(()=>saveUsers(users),[users]);
