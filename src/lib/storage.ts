@@ -1,14 +1,18 @@
 import { WorkOrder } from '../types';
 import { historicalOrders } from './historicalOrders';
 
-const KEY='sos-web-orders-v2-history-import';
-const OLD_KEY='sos-web-orders-v1';
+const KEY='sos-web-orders-v3-archive-2025';
+const OLD_KEYS=['sos-web-orders-v2-history-import','sos-web-orders-v1'];
+
+function archive2025(orders:WorkOrder[]):WorkOrder[]{
+  return orders.map(os=>os.openedAt?.startsWith('2025-')?{...os,archived:true}:os);
+}
 
 function mergeImported(previous:WorkOrder[]=[]):WorkOrder[]{
   const byId=new Map<number,WorkOrder>();
   historicalOrders.forEach(os=>byId.set(os.id,os));
   previous.forEach(os=>byId.set(os.id,os));
-  return [...byId.values()].sort((a,b)=>{
+  return archive2025([...byId.values()]).sort((a,b)=>{
     const date=(b.openedAt||'').localeCompare(a.openedAt||'');
     return date!==0?date:b.number-a.number;
   });
@@ -17,15 +21,19 @@ function mergeImported(previous:WorkOrder[]=[]):WorkOrder[]{
 export function loadOrders():WorkOrder[]{
   try{
     const raw=localStorage.getItem(KEY);
-    if(raw)return JSON.parse(raw);
-    const old=localStorage.getItem(OLD_KEY);
-    const previous:WorkOrder[]=old?JSON.parse(old):[];
+    if(raw)return archive2025(JSON.parse(raw));
+    let previous:WorkOrder[]=[];
+    for(const oldKey of OLD_KEYS){
+      const old=localStorage.getItem(oldKey);
+      if(old){previous=JSON.parse(old);break;}
+    }
     const imported=mergeImported(previous);
     localStorage.setItem(KEY,JSON.stringify(imported));
     return imported;
   }catch{
-    localStorage.setItem(KEY,JSON.stringify(historicalOrders));
-    return historicalOrders;
+    const imported=archive2025(historicalOrders);
+    localStorage.setItem(KEY,JSON.stringify(imported));
+    return imported;
   }
 }
 
