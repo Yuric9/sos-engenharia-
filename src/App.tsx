@@ -11,7 +11,7 @@ import { loadOrders, normalizeOrders, nextOrderNumber, saveOrders } from './lib/
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
 type View='dashboard'|'new'|'edit'|'cadastros'|'usuarios';
-const PREF_LOGO='https://assets.infra.grancursosonline.com.br/projeto/prefeitura-municipal-de-trindade-go.png';
+const PREF_LOGO='/prefeitura-trindade.png';
 export default function App(){
  const [session,setSession]=useState<AppUser|null>(()=>currentUser());
  const [orders,setOrders]=useState<WorkOrder[]>(()=>normalizeOrders(loadOrders()));
@@ -26,8 +26,7 @@ export default function App(){
  const remove=(id:number)=>{if(!isAdmin)return alert('Somente Admin pode excluir uma O.S.');setOrders(x=>x.filter(o=>o.id!==id));goDashboard()};
  const signout=()=>{logout();setSession(null)};
  return <div className="institution-shell">
-   <header className="municipal-header"><div className="municipal-brand"><img src={PREF_LOGO} alt="Prefeitura Municipal de Trindade"/><div><b>Prefeitura de Trindade</b><span>Onde o Futuro acontece Hoje.</span></div></div><div className="department-title"><Building2 size={20}/><div><b>Departamento de Engenharia</b><span>S.O.S — Sistema de Ordens de Manutenção</span></div></div><div className="user-chip"><strong>{session.name}</strong><span>{session.role}</span></div></header>
-   <div className="municipal-stripe"><i/><b/></div>
+   <header className="municipal-header"><div className="municipal-brand"><img src={PREF_LOGO} alt="Prefeitura de Trindade"/><div><b>Prefeitura de Trindade</b><span>Onde o futuro acontece hoje.</span></div></div><div className="department-title"><Building2 size={18}/><div><b>Departamento de Engenharia</b><span>S.O.S — Sistema de Ordens de Manutenção</span></div></div><div className="user-chip"><strong>{session.name}</strong><span>{session.role}</span></div></header>
    <div className="app-shell"><aside className="sidebar"><div className="side-heading"><strong>S.O.S</strong><span>Gestão de manutenção predial</span></div><nav>
  <button className={view==='dashboard'&&!selected?'active':''} onClick={goDashboard}><LayoutDashboard size={18}/>Dashboard</button>
  <button className={view==='new'?'active':''} onClick={()=>{setSelected(null);setView('new')}}><ClipboardPlus size={18}/>Nova O.S.</button>
