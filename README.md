@@ -1,30 +1,35 @@
-# S.O.S — Sistema de Ordens de Manutenção
+# S.O.S — Sistema Web de Ordens de Manutenção
 
-Aplicativo desktop Windows para gestão de Ordens de Serviço de manutenção predial.
+Sistema web para gestão das Ordens de Serviço de manutenção predial da Engenharia.
 
-## Arquitetura
-- Tauri 2
+## Arquitetura atual — fase de desenvolvimento
 - React + Vite + TypeScript
-- Rust
-- SQLite (`rusqlite`)
-- Instalável Windows (NSIS/MSI)
-- Modo portátil via `portable.flag`
+- Aplicação web acessada pelo navegador
+- Persistência provisória em `localStorage` para validar o fluxo antes da escolha do banco definitivo
+- Sem Cloudflare, D1, R2 ou Workers
 
-## Estado atual — v0.1.0
-- Estrutura visual inicial do Dashboard.
-- Ficha detalhada de O.S. com edição/arquivamento/exclusão representados na interface.
-- Seções de materiais, anexos, andamento e mão de obra.
-- Cards e gráfico mensal iniciais.
-- Banco SQLite inicial com entidades principais e auditoria.
-- Arquitetura portátil/instalada preparada.
-- Lógica funcional consolidada em `docs/LOGICA-SISTEMA.md`.
+## Funcional na v0.3
+- Dashboard com indicadores, gráfico mensal, pesquisa e filtros.
+- Cadastro de Nova O.S. com numeração automática.
+- Ficha completa ao clicar na O.S.
+- Edição dos dados da O.S., status e progresso.
+- Arquivar e restaurar O.S.
+- Exclusão com confirmação.
+- Materiais, observações, equipe, prazo e ofício.
+- Upload e exclusão de fotos/documentos pequenos durante a fase de teste.
+- Impressão da ficha.
+- Geração de resumo para copiar e enviar pelo WhatsApp.
+- Dados de teste persistem no navegador entre recarregamentos.
+
+## Importante
+O armazenamento do navegador é apenas provisório. Ele não é o banco de produção e não deve ser usado como cópia única de dados oficiais. Após a validação da interface e das regras, será conectado um banco central e armazenamento de arquivos no servidor.
 
 ## Próximos marcos
-1. Persistência real do Dashboard e CRUD de O.S.
-2. Login e permissões Admin/Operador.
-3. Cadastros em cascata Secretaria > Unidade > Local.
-4. Upload/visualização/exclusão de fotos e documentos.
-5. Histórico/auditoria e transições de status.
-6. Importador da planilha legada.
-7. Relatórios/PDF e compartilhamento WhatsApp.
-8. Backup/restauração e build Windows instalável + portátil.
+1. Login e perfis Admin/Operador.
+2. Cadastros em cascata Secretaria > Unidade > Local.
+3. Cadastro estruturado de equipes, técnicos e materiais.
+4. Histórico/auditoria completo por alteração.
+5. Andamentos, paralisações e mão de obra estruturados.
+6. Relatórios e PDF com início/durante/final.
+7. Importador da planilha legada.
+8. Migração do armazenamento provisório para banco definitivo.
