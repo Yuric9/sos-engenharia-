@@ -2,8 +2,8 @@ export type CatalogKind='secretarias'|'unidades'|'equipes'|'tecnicos'|'materiais
 export interface CatalogItem{ id:number; name:string; active:boolean; parent?:string; detail?:string; address?:string }
 export interface Catalogs{ secretarias:CatalogItem[]; unidades:CatalogItem[]; equipes:CatalogItem[]; tecnicos:CatalogItem[]; materiais:CatalogItem[] }
 
-const KEY='sos-web-catalogs-v3';
-const OLD_KEYS=['sos-web-catalogs-v2','sos-web-catalogs-v1'];
+const KEY='sos-web-catalogs-v4';
+const OLD_KEYS=['sos-web-catalogs-v3','sos-web-catalogs-v2','sos-web-catalogs-v1'];
 
 const orgNames=[
  'Gabinete do Prefeito','Gabinete do Vice-Prefeito','Procuradoria Geral do Município','Controladoria Geral do Município',
@@ -29,9 +29,24 @@ const unitPairs:[string,string][]=[
  ['Superintendência Central de Gestão de Recursos Humanos','Secretaria Municipal da Casa Civil']
 ];
 
+const verifiedAddresses:Record<string,string>={
+ 'CRAS Laguna':'Rua 1014, Quadra 17, Área Pública, Laguna Park, Trindade-GO',
+ 'CRAS Vila Pai Eterno':'Avenida A, Quadra 01, Lote 23, Residencial Pai Eterno, Trindade-GO',
+ 'CRAS Marcelo Barbosa':'Rua Professor Carlos Dayrell, Quadra 10, Lote 32, Setor Cristina, Trindade-GO',
+ 'UBS Laguna Park':'Rua 1.007 com Rua Gardênia, Quadra L, Laguna Park, Trindade-GO',
+ 'UBS Centro':'Av. Manoel Monteiro, Quadra 03, Lote 07, Vila Pai Eterno, Trindade-GO',
+ 'UBS Santuário Novo':'Rua Padre João Cardoso, s/n, Cristina II, Trindade-GO',
+ 'UBS Sol Dourado':'Rua 225 esquina com Rua 200, s/n, Sol Dourado, Trindade-GO',
+ 'UBS Vida Nova':'Rua Murilo Tibery, Vida Nova, Trindade-GO',
+ 'UBS Jardim Califórnia':'Rua Bacuri, Parque Serra Branca, Trindade-GO',
+ 'UBS Jardim Scala':'Rua Elisa Bitencourt esquina com Rua ES 38, s/n, Jardim Scala, Trindade-GO',
+ 'UBS Residencial Garavelo':'Rua José de Alcantara Costa, Quadra 11, Lote 17, Residencial Garavelo, Trindade-GO',
+ 'Superintendência da Receita Municipal':'Av. Raimundo de Aquino, Nº 420, Vila João Braz, CEP 75388-412, Trindade-GO'
+};
+
 const seed:Catalogs={
  secretarias:orgNames.map((name,i)=>({id:1000+i,name,active:true,detail:name.startsWith('Secretaria')?'Secretaria Municipal':'Órgão Municipal'})),
- unidades:unitPairs.map(([name,parent],i)=>({id:2000+i,name,parent,active:true,address:''})),
+ unidades:unitPairs.map(([name,parent],i)=>({id:2000+i,name,parent,active:true,address:verifiedAddresses[name]||''})),
  equipes:[{id:1,name:'Equipe Própria',detail:'Mão de obra própria',active:true},{id:2,name:'Equipe da Secretaria',detail:'Equipe da Secretaria',active:true},{id:3,name:'Empresa Terceirizada',detail:'Empresa terceirizada',active:true}],
  tecnicos:[{id:1,name:'Técnico Geral',detail:'Manutenção',active:true}],
  materiais:[{id:1,name:'Cimento',detail:'saco',active:true},{id:2,name:'Tinta',detail:'lata',active:true},{id:3,name:'Cabo elétrico',detail:'metro',active:true}]
