@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Settings, Archive, LogOut, Users, Building2 } from 'lucide-react';
+import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import WorkOrderDetail from './pages/WorkOrderDetail';
 import WorkOrderForm from './pages/WorkOrderForm';
@@ -8,13 +8,12 @@ import Login from './pages/Login';
 import Cadastros from './pages/Cadastros';
 import Usuarios from './pages/Usuarios';
 import Reports from './pages/Reports';
-import Administration from './pages/Administration';
 import ArchivedOrders from './pages/ArchivedOrders';
 import { WorkOrder } from './types';
 import { loadOrders, normalizeOrders, nextOrderNumber, saveOrders } from './lib/storage';
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
-type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'administration'|'archived';
+type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived';
 export const OWN_TEAM='Mão de obra própria — Departamento de Engenharia';
 export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
 export const INOVART_NAME='INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
@@ -39,7 +38,6 @@ export default function App(){
  if(!session)return <Login onLogin={setSession}/>;
  const current=orders.find(x=>x.id===selected); const isAdmin=session.role==='ADMIN';
  const goDashboard=()=>{setSelected(null);setView('dashboard')};
- const goAdministration=()=>{setSelected(null);if(!isAdmin){alert('Somente usuários ADMIN podem acessar Administração.');return;}setView('administration')};
  const save=(os:WorkOrder)=>{if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return;}if(orders.some(x=>x.number===os.number&&x.id!==os.id)){alert(`A O.S. #${os.number} já existe. Informe outro número.`);return;}setOrders(prev=>prev.some(x=>x.id===os.id)?prev.map(x=>x.id===os.id?os:x):[os,...prev]);setSelected(os.id);setView('dashboard')};
  const remove=(id:number)=>{if(!isAdmin)return alert('Somente Admin pode excluir uma O.S.');setOrders(x=>x.filter(o=>o.id!==id));goDashboard()};
  const signout=()=>{logout();setSession(null)};
@@ -54,8 +52,7 @@ export default function App(){
  <button className={view==='reports'?'active':''} onClick={()=>{setSelected(null);setView('reports')}}><BarChart3 size={18}/>Relatórios</button>
  <button className={view==='archived'?'active':''} onClick={()=>{setSelected(null);setView('archived')}}><Archive size={18}/>Arquivadas</button>
  {isAdmin&&<button className={view==='usuarios'?'active':''} onClick={()=>{setSelected(null);setView('usuarios')}}><Users size={18}/>Usuários</button>}
- {isAdmin&&<button className={view==='administration'?'active':''} onClick={goAdministration}><Settings size={18}/>Administração</button>}
- </nav><button className="logout" onClick={signout}><LogOut size={18}/>Sair</button></aside><main className="main">{view==='administration'&&isAdmin?<Administration orders={orders} users={users} catalogs={catalogs}/>:view==='cadastros'?<Cadastros catalogs={catalogs} onChange={setCatalogs} isAdmin={isAdmin}/>:view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={setUsers}/>:view==='reports'?<Reports orders={orders} onOpen={openOrder}/>:view==='archived'?<ArchivedOrders orders={orders} onOpen={openOrder}/>:view==='orders'?<WorkOrders orders={orders} onOpen={openOrder}/>:view==='new'?<WorkOrderForm catalogs={catalogs} number={nextOrderNumber(orders)} onCancel={goDashboard} onSave={save}/>:view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={save}/>:current?<WorkOrderDetail os={current} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={save} onDelete={()=>remove(current.id)}/>:<Dashboard orders={orders} onOpen={openOrder} onNew={()=>setView('new')}/>}</main></div>
+ </nav><button className="logout" onClick={signout}><LogOut size={18}/>Sair</button></aside><main className="main">{view==='cadastros'?<Cadastros catalogs={catalogs} onChange={setCatalogs} isAdmin={isAdmin}/>:view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={setUsers}/>:view==='reports'?<Reports orders={orders} onOpen={openOrder}/>:view==='archived'?<ArchivedOrders orders={orders} onOpen={openOrder}/>:view==='orders'?<WorkOrders orders={orders} onOpen={openOrder}/>:view==='new'?<WorkOrderForm catalogs={catalogs} number={nextOrderNumber(orders)} onCancel={goDashboard} onSave={save}/>:view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={save}/>:current?<WorkOrderDetail os={current} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={save} onDelete={()=>remove(current.id)}/>:<Dashboard orders={orders} onOpen={openOrder} onNew={()=>setView('new')}/>}</main></div>
    <footer className="municipal-footer"><span>Prefeitura Municipal de Trindade • Departamento de Engenharia</span><span>S.O.S — Sistema interno de Ordens de Manutenção</span></footer>
  </div>
 }
