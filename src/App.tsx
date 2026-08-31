@@ -53,14 +53,13 @@ export default function App(){
   const goDashboard=()=>{setSelected(null);setView('dashboard')};
 
   const persistOrderChange=(producer:(previous:WorkOrder[])=>WorkOrder[])=>{
-    let saved=true;
-    setOrders(previous=>{
-      const next=producer(previous).map(recalcOverdue);
-      saved=saveOrders(next);
-      return saved?next:previous;
-    });
-    if(!saved)alert('Não foi possível salvar a alteração. O armazenamento deste navegador pode estar cheio. Remova anexos grandes ou faça um backup antes de continuar.');
-    return saved;
+    const next=producer(orders).map(recalcOverdue);
+    if(!saveOrders(next)){
+      alert('Não foi possível salvar a alteração. O armazenamento deste navegador pode estar cheio. Remova anexos grandes ou faça um backup antes de continuar.');
+      return false;
+    }
+    setOrders(next);
+    return true;
   };
 
   const updateOrder=(os:WorkOrder)=>{
