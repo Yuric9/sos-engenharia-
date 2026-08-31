@@ -11,15 +11,24 @@ import { loadOrders, normalizeOrders, nextOrderNumber, saveOrders } from './lib/
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
 type View='dashboard'|'new'|'edit'|'cadastros'|'usuarios';
-const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
-function ensureExecutiveContractor(c:Catalogs):Catalogs{
- if(c.equipes.some(x=>x.name===RP_NAME))return c;
- return {...c,equipes:[...c.equipes,{id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'}]};
+export const OWN_TEAM='Mão de obra própria — Departamento de Engenharia';
+export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
+export const INOVART_NAME='INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
+function ensureWorkforceOptions(c:Catalogs):Catalogs{
+ const obsolete=new Set(['Equipe da Secretaria','Empresa Terceirizada']);
+ const equipes=c.equipes.filter(x=>!obsolete.has(x.name)).map(x=>x.name==='Equipe Própria'?{...x,name:OWN_TEAM,detail:'Mão de obra própria do Departamento de Engenharia'}:x);
+ const defaults=[
+  {id:91000,name:OWN_TEAM,active:true,detail:'Mão de obra própria do Departamento de Engenharia'},
+  {id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'},
+  {id:91002,name:INOVART_NAME,active:true,detail:'Empresa terceirizada • Manutenções da Saúde'}
+ ];
+ defaults.forEach(item=>{if(!equipes.some(x=>x.name===item.name))equipes.push(item)});
+ return {...c,equipes};
 }
 export default function App(){
  const [session,setSession]=useState<AppUser|null>(()=>currentUser());
  const [orders,setOrders]=useState<WorkOrder[]>(()=>normalizeOrders(loadOrders()));
- const [catalogs,setCatalogs]=useState<Catalogs>(()=>ensureExecutiveContractor(loadCatalogs()));
+ const [catalogs,setCatalogs]=useState<Catalogs>(()=>ensureWorkforceOptions(loadCatalogs()));
  const [users,setUsers]=useState<AppUser[]>(()=>loadUsers());
  const [selected,setSelected]=useState<number|null>(null); const [view,setView]=useState<View>('dashboard');
  useEffect(()=>saveOrders(orders),[orders]); useEffect(()=>saveCatalogs(catalogs),[catalogs]); useEffect(()=>saveUsers(users),[users]);
