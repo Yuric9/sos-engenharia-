@@ -21,7 +21,7 @@ export default function App(){
  if(!session)return <Login onLogin={setSession}/>;
  const current=orders.find(x=>x.id===selected); const isAdmin=session.role==='ADMIN';
  const goDashboard=()=>{setSelected(null);setView('dashboard')};
- const save=(os:WorkOrder)=>{setOrders(prev=>prev.some(x=>x.id===os.id)?prev.map(x=>x.id===os.id?os:x):[os,...prev]);setSelected(os.id);setView('dashboard')};
+ const save=(os:WorkOrder)=>{if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return;}if(orders.some(x=>x.number===os.number&&x.id!==os.id)){alert(`A O.S. #${os.number} já existe. Informe outro número.`);return;}setOrders(prev=>prev.some(x=>x.id===os.id)?prev.map(x=>x.id===os.id?os:x):[os,...prev]);setSelected(os.id);setView('dashboard')};
  const remove=(id:number)=>{if(!isAdmin)return alert('Somente Admin pode excluir uma O.S.');setOrders(x=>x.filter(o=>o.id!==id));goDashboard()};
  const signout=()=>{logout();setSession(null)};
  return <div className="institution-shell">
