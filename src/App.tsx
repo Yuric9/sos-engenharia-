@@ -26,8 +26,8 @@ export default function App(){
  const remove=(id:number)=>{if(!isAdmin)return alert('Somente Admin pode excluir uma O.S.');setOrders(x=>x.filter(o=>o.id!==id));goDashboard()};
  const signout=()=>{logout();setSession(null)};
  return <div className="institution-shell">
-   <header className="municipal-header"><div className="municipal-brand"><img src={PREF_LOGO} alt="Prefeitura de Trindade"/><div><b>Prefeitura de Trindade</b><span>Onde o futuro acontece hoje.</span></div></div><div className="department-title"><Building2 size={18}/><div><b>Departamento de Engenharia</b><span>S.O.S — Sistema de Ordens de Manutenção</span></div></div><div className="user-chip"><strong>{session.name}</strong><span>{session.role}</span></div></header>
-   <div className="app-shell"><aside className="sidebar"><div className="side-heading"><strong>S.O.S</strong><span>Gestão de obras e manutenções</span></div><nav>
+   <header className="municipal-header"><div className="department-title"><Building2 size={18}/><div><b>Departamento de Engenharia</b><span>S.O.S — Sistema de Ordens de Manutenção</span></div></div><div className="user-chip"><strong>{session.name}</strong><span>{session.role}</span></div></header>
+   <div className="app-shell"><aside className="sidebar"><div className="sidebar-logo"><img src={PREF_LOGO} alt="Prefeitura de Trindade"/></div><div className="side-heading"><strong>S.O.S</strong><span>Gestão de obras e manutenções</span></div><nav>
  <button className={view==='dashboard'&&!selected?'active':''} onClick={goDashboard}><LayoutDashboard size={18}/>Dashboard</button>
  <button className={view==='new'?'active':''} onClick={()=>{setSelected(null);setView('new')}}><ClipboardPlus size={18}/>Nova O.S.</button>
  <button onClick={goDashboard}><FileText size={18}/>Ordens de Serviço</button>
