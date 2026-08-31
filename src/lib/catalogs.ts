@@ -1,9 +1,9 @@
 export type CatalogKind='secretarias'|'unidades'|'equipes'|'tecnicos'|'materiais';
-export interface CatalogItem{ id:number; name:string; active:boolean; parent?:string; detail?:string }
+export interface CatalogItem{ id:number; name:string; active:boolean; parent?:string; detail?:string; address?:string }
 export interface Catalogs{ secretarias:CatalogItem[]; unidades:CatalogItem[]; equipes:CatalogItem[]; tecnicos:CatalogItem[]; materiais:CatalogItem[] }
 
-const KEY='sos-web-catalogs-v2';
-const OLD_KEY='sos-web-catalogs-v1';
+const KEY='sos-web-catalogs-v3';
+const OLD_KEYS=['sos-web-catalogs-v2','sos-web-catalogs-v1'];
 
 const orgNames=[
  'Gabinete do Prefeito','Gabinete do Vice-Prefeito','Procuradoria Geral do Município','Controladoria Geral do Município',
@@ -31,7 +31,7 @@ const unitPairs:[string,string][]=[
 
 const seed:Catalogs={
  secretarias:orgNames.map((name,i)=>({id:1000+i,name,active:true,detail:name.startsWith('Secretaria')?'Secretaria Municipal':'Órgão Municipal'})),
- unidades:unitPairs.map(([name,parent],i)=>({id:2000+i,name,parent,active:true})),
+ unidades:unitPairs.map(([name,parent],i)=>({id:2000+i,name,parent,active:true,address:''})),
  equipes:[{id:1,name:'Equipe Própria',detail:'Mão de obra própria',active:true},{id:2,name:'Equipe da Secretaria',detail:'Equipe da Secretaria',active:true},{id:3,name:'Empresa Terceirizada',detail:'Empresa terceirizada',active:true}],
  tecnicos:[{id:1,name:'Técnico Geral',detail:'Manutenção',active:true}],
  materiais:[{id:1,name:'Cimento',detail:'saco',active:true},{id:2,name:'Tinta',detail:'lata',active:true},{id:3,name:'Cabo elétrico',detail:'metro',active:true}]
@@ -40,15 +40,17 @@ const seed:Catalogs={
 function mergeByName(base:CatalogItem[],previous:CatalogItem[]=[]){
  const map=new Map<string,CatalogItem>();
  base.forEach(x=>map.set(`${x.name}|${x.parent||''}`,x));
- previous.forEach(x=>{const k=`${x.name}|${x.parent||''}`;if(!map.has(k))map.set(k,x)});
+ previous.forEach(x=>{const k=`${x.name}|${x.parent||''}`;const existing=map.get(k);map.set(k,existing?{...existing,...x,address:x.address||existing.address||''}:x)});
  return [...map.values()];
 }
 
 export function loadCatalogs():Catalogs{
  try{
    const current=localStorage.getItem(KEY); if(current)return JSON.parse(current);
-   const old=localStorage.getItem(OLD_KEY);
-   if(old){const prev:Catalogs=JSON.parse(old);const migrated:Catalogs={secretarias:mergeByName(seed.secretarias,prev.secretarias),unidades:mergeByName(seed.unidades,prev.unidades),equipes:mergeByName(seed.equipes,prev.equipes),tecnicos:mergeByName(seed.tecnicos,prev.tecnicos),materiais:mergeByName(seed.materiais,prev.materiais)};localStorage.setItem(KEY,JSON.stringify(migrated));return migrated}
+   for(const oldKey of OLD_KEYS){
+     const old=localStorage.getItem(oldKey);
+     if(old){const prev:Catalogs=JSON.parse(old);const migrated:Catalogs={secretarias:mergeByName(seed.secretarias,prev.secretarias),unidades:mergeByName(seed.unidades,prev.unidades),equipes:mergeByName(seed.equipes,prev.equipes),tecnicos:mergeByName(seed.tecnicos,prev.tecnicos),materiais:mergeByName(seed.materiais,prev.materiais)};localStorage.setItem(KEY,JSON.stringify(migrated));return migrated}
+   }
  }catch{}
  localStorage.setItem(KEY,JSON.stringify(seed));return seed;
 }
