@@ -1,0 +1,67 @@
+name: Build S.O.S Portable Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'vite.config.*'
+      - 'tsconfig.json'
+      - '.github/workflows/build-portable-windows.yml'
+
+jobs:
+  build-portable:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+        continue-on-error: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck and build frontend
+        run: npm run build
+
+      - name: Build portable executable
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+
+      - name: Prepare portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path portable-package | Out-Null
+          Copy-Item "src-tauri/target/release/sos-desktop.exe" "portable-package/SOS-Engenharia.exe"
+          New-Item -ItemType File -Force -Path "portable-package/portable.flag" | Out-Null
+          @"
+          S.O.S - Sistema de Ordens de Manutenção
+          Modo portátil para HD externo.
+
+          Mantenha SOS-Engenharia.exe e portable.flag na mesma pasta do HD.
+          Ao iniciar, o sistema criará automaticamente:
+          sos-data\data\sos.db
+          sos-data\anexos\
+          sos-data\backups\
+          sos-data\logs\
+
+          Nunca desconecte o HD enquanto o S.O.S estiver aberto.
+          "@ | Set-Content -Encoding UTF8 "portable-package/LEIA-ME.txt"
+          Compress-Archive -Path "portable-package/*" -DestinationPath "SOS-Engenharia-Portable.zip" -Force
+
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SOS-Engenharia-Portable
+          path: SOS-Engenharia-Portable.zip
+          if-no-files-found: error
