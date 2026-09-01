@@ -64,20 +64,23 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
    const unidade=catalogs.unidades.find(x=>x.active&&upper.includes(normalize(x.name)));if(unidade){patch.unidade=unidade.name;if(!patch.local&&unidade.address)patch.local=unidade.address;if(!patch.secretaria&&unidade.parent)patch.secretaria=unidade.parent}
    const equipe=catalogs.equipes.find(x=>x.active&&upper.includes(normalize(x.name)));if(equipe){patch.team=equipe.name;patch.workforceOrigin=equipe.detail||f.workforceOrigin}
    await addPdfAttachment(file,'OFICIO');setF(x=>({...x,...patch}));
-   const missingAfterRead=['openedAt','secretaria','serviceType','description'].filter(key=>key==='openedAt'?!patch.openedAt:!String((patch as any)[key]??(f as any)[key]??'').trim());
-   const labels:Record<string,string>={openedAt:'Data da O.S.',secretaria:'Secretaria',serviceType:'Tipo de serviço',description:'Descrição do serviço'};
-   alert(missingAfterRead.length?`PDF lido. Alguns campos obrigatórios não foram identificados automaticamente: ${missingAfterRead.map(k=>labels[k]).join(', ')}. Unidade / Órgão é opcional. Confira e complete somente esses campos antes de salvar.`:`PDF lido. Data da O.S.: ${new Date(`${patch.openedAt}T12:00:00`).toLocaleDateString('pt-BR')}. Unidade / Órgão é opcional. Confira os demais dados antes de salvar.`);
+   const missingAfterRead=['openedAt','secretaria','serviceType','team','deadline','priority','estimatedAmount'].filter(key=>key==='openedAt'?!patch.openedAt:!String((patch as any)[key]??(f as any)[key]??'').trim());
+   const labels:Record<string,string>={openedAt:'Data da O.S.',secretaria:'Secretaria',serviceType:'Tipo de serviço',team:'Equipe',deadline:'Prazo',priority:'Prioridade',estimatedAmount:'Tempo previsto'};
+   alert(missingAfterRead.length?`PDF lido. Alguns campos obrigatórios ainda precisam ser conferidos/preenchidos: ${missingAfterRead.map(k=>labels[k]).join(', ')}. Os demais campos são opcionais.`:`PDF lido. Data da O.S.: ${new Date(`${patch.openedAt}T12:00:00`).toLocaleDateString('pt-BR')}. Confira os campos obrigatórios antes de salvar.`);
   }catch(err){alert(`Não foi possível ler automaticamente este PDF. O arquivo não foi usado para preencher os campos. ${err instanceof Error?err.message:''}`)}finally{setReadingPdf(false);if(osPdfRef.current)osPdfRef.current.value=''}
  };
  const attachMaterialPdf=async(file:File|null)=>{if(!file)return;try{if(await addPdfAttachment(file,'MATERIAL'))alert('Lista de materiais anexada à O.S.')}catch{alert('Não foi possível anexar a lista de materiais.')}finally{if(materialPdfRef.current)materialPdfRef.current.value=''}};
  const submit=(e:any)=>{
   e.preventDefault();
-  if(!Number.isInteger(f.number)||f.number<=0){alert('Informe o número da O.S.');return;}
   const missing:string[]=[];
+  if(!Number.isInteger(f.number)||f.number<=0)missing.push('Número da O.S.');
   if(!f.openedAt.trim())missing.push('Data da O.S.');
   if(!f.secretaria.trim())missing.push('Secretaria');
   if(!f.serviceType.trim())missing.push('Tipo de serviço');
-  if(!f.description.trim())missing.push('Descrição do serviço');
+  if(!f.team.trim())missing.push('Equipe');
+  if(!f.deadline.trim())missing.push('Prazo');
+  if(!f.priority.trim())missing.push('Prioridade');
+  if(!Number.isFinite(f.estimatedAmount)||f.estimatedAmount<=0)missing.push('Tempo previsto');
   if(missing.length){alert(`Ainda falta preencher: ${missing.join(', ')}.`);return;}
   onSave(f)
  };
@@ -96,8 +99,8 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
  <label><span>Prioridade</span><select style={inputStyle} value={f.priority} onChange={e=>set('priority',e.target.value)}><option>BAIXA</option><option>MEDIA</option><option>ALTA</option><option>URGENTE</option></select></label>
  <label><span>Tempo previsto</span><input style={inputStyle} type="number" min="0" step="0.5" value={f.estimatedAmount} onChange={e=>set('estimatedAmount',Number(e.target.value))}/></label>
  <label><span>Unidade de tempo</span><select style={inputStyle} value={f.estimatedUnit} onChange={e=>set('estimatedUnit',e.target.value)}><option value="HORAS">Horas</option><option value="DIARIAS">Diárias</option></select></label></div>
- <label style={{display:'block',marginTop:14}}><span>Descrição do serviço</span><textarea style={{...inputStyle,minHeight:110}} value={f.description} onChange={e=>set('description',e.target.value)}/></label>
- <label style={{display:'block',marginTop:14}}><span>Materiais previstos/utilizados</span><textarea style={{...inputStyle,minHeight:80}} value={f.materialsSummary} onChange={e=>set('materialsSummary',e.target.value)} placeholder="Campo livre para observações ou materiais informados manualmente."/><button type="button" style={{marginTop:8}} onClick={()=>materialPdfRef.current?.click()}><Paperclip size={15}/> Anexar PDF da lista de materiais</button><input ref={materialPdfRef} type="file" hidden accept="application/pdf,.pdf" onChange={e=>attachMaterialPdf(e.target.files?.[0]||null)}/>{materialPdfs.map(a=><small key={a.id} style={{display:'block',marginTop:6}}>Lista anexada: {a.name}</small>)}</label>
- <label style={{display:'block',marginTop:14}}><span>Observações</span><textarea style={{...inputStyle,minHeight:80}} value={f.observations||''} onChange={e=>set('observations',e.target.value)}/></label>
+ <label style={{display:'block',marginTop:14}}><span>Descrição do serviço (opcional)</span><textarea style={{...inputStyle,minHeight:110}} value={f.description} onChange={e=>set('description',e.target.value)}/></label>
+ <label style={{display:'block',marginTop:14}}><span>Materiais previstos/utilizados (opcional)</span><textarea style={{...inputStyle,minHeight:80}} value={f.materialsSummary} onChange={e=>set('materialsSummary',e.target.value)} placeholder="Campo livre para observações ou materiais informados manualmente."/><button type="button" style={{marginTop:8}} onClick={()=>materialPdfRef.current?.click()}><Paperclip size={15}/> Anexar PDF da lista de materiais</button><input ref={materialPdfRef} type="file" hidden accept="application/pdf,.pdf" onChange={e=>attachMaterialPdf(e.target.files?.[0]||null)}/>{materialPdfs.map(a=><small key={a.id} style={{display:'block',marginTop:6}}>Lista anexada: {a.name}</small>)}</label>
+ <label style={{display:'block',marginTop:14}}><span>Observações (opcional)</span><textarea style={{...inputStyle,minHeight:80}} value={f.observations||''} onChange={e=>set('observations',e.target.value)}/></label>
  {initial&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginTop:14}}><label><span>Status</span><select style={inputStyle} value={f.status} onChange={e=>set('status',e.target.value)}>{['ABERTA','EM_ANDAMENTO','PARALISADA','AGUARDANDO_MATERIAL','ATENDIDA','CONCLUIDA','CANCELADA'].map(x=><option key={x}>{x}</option>)}</select></label><label><span>Progresso (%)</span><input style={inputStyle} type="number" min="0" max="100" value={f.progress} onChange={e=>set('progress',Number(e.target.value))}/></label></div>}
  <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:20}}><button type="button" className="icon-btn" onClick={onCancel}>Cancelar</button><button className="primary" type="submit"><Save size={18}/>Salvar O.S.</button></div></form></>}
