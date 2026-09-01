@@ -14,6 +14,17 @@ function fileToDataUrl(file:File):Promise<string>{return new Promise((resolve,re
 function normalize(s:string){return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim()}
 function monthNumber(name:string){const m:Record<string,string>={JANEIRO:'01',FEVEREIRO:'02',MARCO:'03',ABRIL:'04',MAIO:'05',JUNHO:'06',JULHO:'07',AGOSTO:'08',SETEMBRO:'09',OUTUBRO:'10',NOVEMBRO:'11',DEZEMBRO:'12'};return m[normalize(name)]}
 async function readPdfText(file:File){const data=await file.arrayBuffer();const pdf=await getDocument({data}).promise;const pages:string[]=[];for(let p=1;p<=pdf.numPages;p++){const content=await (await pdf.getPage(p)).getTextContent();pages.push(content.items.map((item:any)=>item.str||'').join(' '))}return pages.join('\n')}
+function cleanExtracted(value?:string){return (value||'').replace(/\s+/g,' ').replace(/^[\s:;.-]+|[\s;.-]+$/g,'').trim()}
+function extractDescription(text:string){
+ const patterns=[
+  /SERVI(?:C|Ç)OS?\s+A\s+SER\s+REALIZAD[OA]S?\s*[:\-]?\s*(.+?)(?=\s+(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL|MATERIAIS?|LISTA\s+DE\s+MATERIAL|ATENCIOSAMENTE|OBSERVA(?:C|Ç)(?:A|Ã)O)\s*[:\-]|$)/i,
+  /DESCRI(?:C|Ç)(?:A|Ã)O(?:\s+DO\s+SERVI(?:C|Ç)O)?\s*[:\-]?\s*(.+?)(?=\s+(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL|MATERIAIS?|LISTA\s+DE\s+MATERIAL|ATENCIOSAMENTE|OBSERVA(?:C|Ç)(?:A|Ã)O)\s*[:\-]|$)/i,
+  /OBJETO\s*[:\-]?\s*(.+?)(?=\s+(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL|MATERIAIS?|ATENCIOSAMENTE)\s*[:\-]|$)/i,
+  /SERVI(?:C|Ç)O\s*[:\-]\s*(.+?)(?=\s+(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL|MATERIAIS?|ATENCIOSAMENTE)\s*[:\-]|$)/i
+ ];
+ for(const pattern of patterns){const match=text.match(pattern);const value=cleanExtracted(match?.[1]);if(value.length>=3)return value}
+ return '';
+}
 
 export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:{initial?:WorkOrder;number:number;onCancel:()=>void;onSave:(os:WorkOrder)=>void;catalogs:Catalogs}){
  const [f,setF]=useState<WorkOrder>(initial??{id:Date.now(),number,openedAt:new Date().toISOString().slice(0,10),secretaria:'',unidade:'',local:'',serviceType:'',description:'',team:'Equipe Própria',workforceOrigin:'Mão de obra própria',priority:'MEDIA',deadline:new Date().toISOString().slice(0,10),estimatedAmount:1,estimatedUnit:'DIARIAS',status:'ABERTA',progress:10,attended:false,archived:false,materialsSummary:'',notesCount:0,attachmentsCount:0,officeDocument:'',overdueDays:0,observations:'',attachments:[]});
@@ -35,18 +46,29 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
    const osMatch=text.match(/(?:OS|O\.S\.|ORDEM\s+DE\s+SERVI(?:C|Ç)OS?)\s*(?:N[º°o.]*)?\s*[:#-]?\s*(\d+)\s*\/\s*(\d{4})/i);if(osMatch)patch.number=Number(osMatch[1]);
    const dateLong=text.match(/(\d{1,2})\s+de\s+([A-Za-zÀ-ÿçÇ]+)\s+de\s+(\d{4})/i);const dateShort=text.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})\b/);
    if(dateLong){const mm=monthNumber(dateLong[2]);if(mm)patch.openedAt=`${dateLong[3]}-${mm}-${String(Number(dateLong[1])).padStart(2,'0')}`}else if(dateShort)patch.openedAt=`${dateShort[3]}-${String(Number(dateShort[2])).padStart(2,'0')}-${String(Number(dateShort[1])).padStart(2,'0')}`;
-   const loc=text.match(/(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL)\s*:\s*(.+?)(?=\s+(?:ATENCIOSAMENTE|LISTA\s+DE\s+MATERIAL|QUALQUER\s+D[ÚU]VIDA|$))/i);if(loc)patch.local=loc[1].trim().replace(/;$/,'');
-   const desc=text.match(/SERVI(?:C|Ç)OS?\s+A\s+SER\s+REALIZAD[OA]S?\s*:\s*(.+?)(?=\s+(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL)\s*:)/i);if(desc)patch.description=desc[1].trim().replace(/;$/,'');
+   const loc=text.match(/(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL)\s*[:\-]\s*(.+?)(?=\s+(?:ATENCIOSAMENTE|LISTA\s+DE\s+MATERIAL|MATERIAIS?|QUALQUER\s+D[ÚU]VIDA|OBSERVA(?:C|Ç)(?:A|Ã)O|$))/i);if(loc)patch.local=cleanExtracted(loc[1]);
+   const description=extractDescription(text);if(description)patch.description=description;
    const svc=[['HIDRÁULICA',['ENCANADOR','HIDRAUL']],['ELÉTRICA',['ELETRIC','LAMPADA','LÂMPADA']],['PINTURA',['PINTOR','PINTURA']],['ALVENARIA',['PEDREIRO','ALVENARIA']],['CARPINTARIA',['CARPINTEIRO','MADEIRA']]].find(([,keys])=>(keys as string[]).some(k=>upper.includes(normalize(k))));if(svc)patch.serviceType=svc[0] as string;
    const secretaria=catalogs.secretarias.find(x=>x.active&&upper.includes(normalize(x.name)));if(secretaria)patch.secretaria=secretaria.name;
    const unidade=catalogs.unidades.find(x=>x.active&&upper.includes(normalize(x.name)));if(unidade){patch.unidade=unidade.name;if(!patch.local&&unidade.address)patch.local=unidade.address;if(!patch.secretaria&&unidade.parent)patch.secretaria=unidade.parent}
    const equipe=catalogs.equipes.find(x=>x.active&&upper.includes(normalize(x.name)));if(equipe){patch.team=equipe.name;patch.workforceOrigin=equipe.detail||f.workforceOrigin}
    await addPdfAttachment(file,'OFICIO');setF(x=>({...x,...patch}));
-   alert('PDF lido. Confira os campos preenchidos antes de salvar a O.S.');
+   const missingAfterRead=['secretaria','unidade','serviceType','description'].filter(key=>!String((patch as any)[key]??(f as any)[key]??'').trim());
+   alert(missingAfterRead.length?`PDF lido. Alguns campos não foram identificados automaticamente: ${missingAfterRead.map(k=>({secretaria:'Secretaria',unidade:'Unidade / Órgão',serviceType:'Tipo de serviço',description:'Descrição do serviço'} as Record<string,string>)[k]).join(', ')}. Confira e complete somente esses campos antes de salvar.`:'PDF lido e campos principais preenchidos. Confira os dados antes de salvar a O.S.');
   }catch(err){alert(`Não foi possível ler automaticamente este PDF. O arquivo não foi usado para preencher os campos. ${err instanceof Error?err.message:''}`)}finally{setReadingPdf(false);if(osPdfRef.current)osPdfRef.current.value=''}
  };
  const attachMaterialPdf=async(file:File|null)=>{if(!file)return;try{if(await addPdfAttachment(file,'MATERIAL'))alert('Lista de materiais anexada à O.S.')}catch{alert('Não foi possível anexar a lista de materiais.')}finally{if(materialPdfRef.current)materialPdfRef.current.value=''}};
- const submit=(e:any)=>{e.preventDefault();if(!Number.isInteger(f.number)||f.number<=0){alert('Informe o número da O.S.');return;}if(!f.secretaria||!f.unidade||!f.serviceType||!f.description){alert('Preencha Secretaria, Unidade, Tipo de serviço e Descrição.');return;}onSave(f)};
+ const submit=(e:any)=>{
+  e.preventDefault();
+  if(!Number.isInteger(f.number)||f.number<=0){alert('Informe o número da O.S.');return;}
+  const missing:string[]=[];
+  if(!f.secretaria.trim())missing.push('Secretaria');
+  if(!f.unidade.trim())missing.push('Unidade / Órgão');
+  if(!f.serviceType.trim())missing.push('Tipo de serviço');
+  if(!f.description.trim())missing.push('Descrição do serviço');
+  if(missing.length){alert(`Ainda falta preencher: ${missing.join(', ')}.`);return;}
+  onSave(f)
+ };
  const materialPdfs=(f.attachments||[]).filter(a=>a.category==='MATERIAL');const osPdfs=(f.attachments||[]).filter(a=>a.category==='OFICIO');const lastOsPdf=osPdfs.length?osPdfs[osPdfs.length-1]:undefined;
  return <><header className="topbar"><div className="title-row"><button className="icon-btn" onClick={onCancel}><ArrowLeft size={20}/></button><div><h1>{initial?'Editar':'Nova'} O.S. #{f.number||'—'}</h1><p>Cadastro completo da Ordem de Serviço</p></div></div></header><form onSubmit={submit} className="panel" style={{maxWidth:1100}}><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
  <label><span>Número da O.S.</span><input style={inputStyle} type="number" min="1" step="1" value={f.number||''} onChange={e=>set('number',Number(e.target.value))} placeholder="Informe o número da O.S."/><button type="button" style={{marginTop:8}} onClick={()=>osPdfRef.current?.click()}><FileText size={15}/>{readingPdf?' Lendo PDF...':' Carregar PDF da O.S.'}</button><input ref={osPdfRef} type="file" hidden accept="application/pdf,.pdf" onChange={e=>importOsPdf(e.target.files?.[0]||null)}/>{lastOsPdf&&<small style={{display:'block',marginTop:6}}>PDF original: {lastOsPdf.name}</small>}</label>
