@@ -84,12 +84,19 @@ fn migrate_legacy_attachment_files(order:&mut Value)->std::result::Result<bool,S
         let mime=head.strip_prefix("data:").and_then(|x|x.strip_suffix(";base64")).unwrap_or("");
         let id=item.get("id").and_then(Value::as_str).unwrap_or("").to_string();
         let name=item.get("name").and_then(Value::as_str).unwrap_or("").to_string();
-        if let Ok(path)=save_attachment(os_id,&id,&name,mime,data){
-            if let Some(obj)=item.as_object_mut(){obj.insert("storedPath".into(),Value::String(path));obj.remove("dataUrl");}
-            changed=true;
-        }
+        let path=save_attachment(os_id,&id,&name,mime,data)?;
+        if let Some(obj)=item.as_object_mut(){obj.insert("storedPath".into(),Value::String(path));obj.remove("dataUrl");}
+        changed=true;
     }
     Ok(changed)
+}
+
+fn prepare_order(raw:&str)->std::result::Result<(i64,i64,String),String>{
+    let mut value:Value=serde_json::from_str(raw).map_err(|_|"JSON de O.S. inválido".to_string())?;
+    migrate_legacy_attachment_files(&mut value)?;
+    let json=value.to_string();
+    let (id,number)=validate_order(&json)?;
+    Ok((id,number,json))
 }
 
 fn migrate_legacy_orders(conn:&mut Connection)->Result<()> {
@@ -137,10 +144,10 @@ pub fn load_orders()->Result<Vec<String>>{
 }
 
 pub fn save_order(order_json:&str,user_id:Option<i64>)->std::result::Result<(),String>{
-    let (id,number)=validate_order(order_json)?; let mut conn=open().map_err(|e|e.to_string())?; let tx=conn.transaction().map_err(|e|e.to_string())?;
+    let (id,number,json)=prepare_order(order_json)?; let mut conn=open().map_err(|e|e.to_string())?; let tx=conn.transaction().map_err(|e|e.to_string())?;
     let before:Option<String>=tx.query_row("SELECT order_json FROM work_order_records WHERE id=?1",params![id],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
-    tx.execute("INSERT INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET number=excluded.number,order_json=excluded.order_json,updated_at=CURRENT_TIMESTAMP",params![id,number,order_json]).map_err(|e|e.to_string())?;
-    audit(&tx,user_id,if before.is_some(){"UPDATE"}else{"CREATE"},Some(id),before.as_deref(),Some(order_json)).map_err(|e|e.to_string())?;
+    tx.execute("INSERT INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET number=excluded.number,order_json=excluded.order_json,updated_at=CURRENT_TIMESTAMP",params![id,number,&json]).map_err(|e|e.to_string())?;
+    audit(&tx,user_id,if before.is_some(){"UPDATE"}else{"CREATE"},Some(id),before.as_deref(),Some(&json)).map_err(|e|e.to_string())?;
     tx.commit().map_err(|e|e.to_string())?; Ok(())
 }
 
@@ -153,10 +160,10 @@ pub fn delete_order(id:i64,user_id:Option<i64>)->Result<()> {
 }
 
 pub fn replace_orders(order_jsons:&[String],user_id:Option<i64>)->std::result::Result<(),String>{
-    let mut validated=Vec::with_capacity(order_jsons.len()); for raw in order_jsons{let (id,number)=validate_order(raw)?;validated.push((id,number,raw));}
+    let mut validated=Vec::with_capacity(order_jsons.len()); for raw in order_jsons{validated.push(prepare_order(raw)?);}
     let mut conn=open().map_err(|e|e.to_string())?; let tx=conn.transaction().map_err(|e|e.to_string())?;
     tx.execute("DELETE FROM work_order_records",[]).map_err(|e|e.to_string())?;
-    for (id,number,raw) in validated{tx.execute("INSERT INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP)",params![id,number,raw]).map_err(|e|e.to_string())?;}
+    for (id,number,json) in validated{tx.execute("INSERT INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP)",params![id,number,json]).map_err(|e|e.to_string())?;}
     audit(&tx,user_id,"IMPORT",None,None,None).map_err(|e|e.to_string())?; tx.commit().map_err(|e|e.to_string())?; Ok(())
 }
 
