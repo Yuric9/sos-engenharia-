@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import WorkOrderDetail from './pages/WorkOrderDetail';
@@ -13,6 +13,15 @@ import { WorkOrder } from './types';
 import { loadOrders, normalizeOrders, recalcOverdue, saveOrders } from './lib/storage';
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
+import {
+  getDesktopDatabaseLocation,
+  isDesktopMode,
+  loadDesktopSnapshot,
+  saveDesktopSnapshot,
+  SNAPSHOT_CATALOGS,
+  SNAPSHOT_ORDERS,
+  SNAPSHOT_USERS
+} from './lib/nativeDb';
 
 type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived';
 
@@ -35,13 +44,61 @@ function ensureWorkforceOptions(c:Catalogs):Catalogs{
 }
 
 export default function App(){
+  const desktop=isDesktopMode();
   const [session,setSession]=useState<AppUser|null>(()=>currentUser());
   const [orders,setOrders]=useState<WorkOrder[]>(()=>normalizeOrders(loadOrders()));
   const [catalogs,setCatalogs]=useState<Catalogs>(()=>ensureWorkforceOptions(loadCatalogs()));
   const [users,setUsers]=useState<AppUser[]>(()=>loadUsers());
   const [selected,setSelected]=useState<number|null>(null);
   const [view,setView]=useState<View>('dashboard');
+  const [hydrating,setHydrating]=useState(desktop);
+  const [databaseLocation,setDatabaseLocation]=useState<string|null>(null);
 
+  useEffect(()=>{
+    if(!desktop){setHydrating(false);return;}
+    let cancelled=false;
+    (async()=>{
+      const [savedOrders,savedCatalogs,savedUsers,location]=await Promise.all([
+        loadDesktopSnapshot<WorkOrder[]>(SNAPSHOT_ORDERS),
+        loadDesktopSnapshot<Catalogs>(SNAPSHOT_CATALOGS),
+        loadDesktopSnapshot<AppUser[]>(SNAPSHOT_USERS),
+        getDesktopDatabaseLocation()
+      ]);
+      if(cancelled)return;
+
+      if(savedOrders){
+        const normalized=normalizeOrders(savedOrders);
+        saveOrders(normalized);
+        setOrders(normalized);
+      }else{
+        await saveDesktopSnapshot(SNAPSHOT_ORDERS,orders);
+      }
+
+      if(savedCatalogs){
+        const prepared=ensureWorkforceOptions(savedCatalogs);
+        saveCatalogs(prepared);
+        setCatalogs(prepared);
+      }else{
+        await saveDesktopSnapshot(SNAPSHOT_CATALOGS,catalogs);
+      }
+
+      if(savedUsers){
+        saveUsers(savedUsers);
+        setUsers(savedUsers);
+      }else{
+        await saveDesktopSnapshot(SNAPSHOT_USERS,users);
+      }
+
+      setDatabaseLocation(location);
+      setSession(currentUser());
+      setHydrating(false);
+    })();
+    return()=>{cancelled=true};
+  // A carga do SQLite deve ocorrer apenas uma vez na inicialização.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  if(hydrating)return <div style={{padding:32,fontFamily:'system-ui'}}><h2>S.O.S</h2><p>Carregando banco de dados do HD externo...</p></div>;
   if(!session)return <Login onLogin={setSession}/>;
 
   const current=orders.find(x=>x.id===selected);
@@ -49,9 +106,15 @@ export default function App(){
 
   const goDashboard=()=>{setSelected(null);setView('dashboard')};
 
-  const persistOrderChange=(producer:(previous:WorkOrder[])=>WorkOrder[])=>{
+  const persistOrderChange=async(producer:(previous:WorkOrder[])=>WorkOrder[])=>{
     const next=producer(orders).map(recalcOverdue);
-    if(!saveOrders(next)){
+    if(desktop){
+      if(!await saveDesktopSnapshot(SNAPSHOT_ORDERS,next)){
+        alert('Não foi possível salvar a O.S. no banco SQLite do HD externo. Confira se o HD continua conectado e tente novamente.');
+        return false;
+      }
+      saveOrders(next);
+    }else if(!saveOrders(next)){
       alert('Não foi possível salvar a alteração. O armazenamento deste navegador pode estar cheio. Remova anexos grandes ou faça um backup antes de continuar.');
       return false;
     }
@@ -59,16 +122,28 @@ export default function App(){
     return true;
   };
 
-  const persistCatalogs=(next:Catalogs)=>{
-    if(!saveCatalogs(next)){
+  const persistCatalogs=async(next:Catalogs)=>{
+    if(desktop){
+      if(!await saveDesktopSnapshot(SNAPSHOT_CATALOGS,next)){
+        alert('Não foi possível salvar o cadastro no banco SQLite do HD externo. Confira a conexão do HD.');
+        return;
+      }
+      saveCatalogs(next);
+    }else if(!saveCatalogs(next)){
       alert('Não foi possível salvar o cadastro. O armazenamento deste navegador pode estar cheio.');
       return;
     }
     setCatalogs(next);
   };
 
-  const persistUsers=(next:AppUser[])=>{
-    if(!saveUsers(next)){
+  const persistUsers=async(next:AppUser[])=>{
+    if(desktop){
+      if(!await saveDesktopSnapshot(SNAPSHOT_USERS,next)){
+        alert('Não foi possível salvar o usuário no banco SQLite do HD externo. Confira a conexão do HD.');
+        return;
+      }
+      saveUsers(next);
+    }else if(!saveUsers(next)){
       alert('Não foi possível salvar a alteração de usuário. O armazenamento deste navegador pode estar cheio.');
       return;
     }
@@ -77,14 +152,14 @@ export default function App(){
     if(refreshed)setSession(refreshed);
   };
 
-  const updateOrder=(os:WorkOrder)=>{
+  const updateOrder=async(os:WorkOrder)=>{
     if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return;}
     const updated=recalcOverdue(os);
-    const saved=persistOrderChange(previous=>previous.map(x=>x.id===updated.id?updated:x));
+    const saved=await persistOrderChange(previous=>previous.map(x=>x.id===updated.id?updated:x));
     if(saved)setSelected(updated.id);
   };
 
-  const saveForm=(os:WorkOrder)=>{
+  const saveForm=async(os:WorkOrder)=>{
     if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return;}
     const exists=orders.some(x=>x.id===os.id);
     if(!exists&&orders.some(x=>x.number===os.number)){
@@ -92,16 +167,16 @@ export default function App(){
       return;
     }
     const updated=recalcOverdue(os);
-    const saved=persistOrderChange(previous=>exists
+    const saved=await persistOrderChange(previous=>exists
       ?previous.map(x=>x.id===updated.id?updated:x)
       :[updated,...previous]
     );
     if(saved){setSelected(updated.id);setView('dashboard');}
   };
 
-  const remove=(id:number)=>{
+  const remove=async(id:number)=>{
     if(!isAdmin)return alert('Somente Admin pode excluir uma O.S.');
-    const saved=persistOrderChange(previous=>previous.filter(o=>o.id!==id));
+    const saved=await persistOrderChange(previous=>previous.filter(o=>o.id!==id));
     if(saved)goDashboard();
   };
 
@@ -139,6 +214,6 @@ export default function App(){
         :<Dashboard orders={orders} onOpen={openOrder} onNew={()=>setView('new')}/>} 
       </main>
     </div>
-    <footer className="municipal-footer"><span>Prefeitura Municipal de Trindade • Departamento de Engenharia</span><span>S.O.S — Sistema interno de Ordens de Manutenção</span></footer>
+    <footer className="municipal-footer"><span>Prefeitura Municipal de Trindade • Departamento de Engenharia</span><span>{desktop?`Banco SQLite externo${databaseLocation?` • ${databaseLocation}`:''}`:'S.O.S — Sistema interno de Ordens de Manutenção'}</span></footer>
   </div>
 }
