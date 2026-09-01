@@ -1,0 +1,30 @@
+name: Package S.O.S Source
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/package-source.yml'
+
+jobs:
+  package-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create source ZIP
+        run: |
+          zip -r SOS-Engenharia-Codigo-Fonte-main.zip \
+            src src-tauri docs public \
+            package.json tsconfig.json vite.config.ts index.html README.md .gitignore \
+            .github/workflows/build-portable-windows.yml \
+            -x 'src-tauri/target/*' 'node_modules/*' 'dist/*'
+
+      - name: Upload source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SOS-Engenharia-Codigo-Fonte
+          path: SOS-Engenharia-Codigo-Fonte-main.zip
+          if-no-files-found: error
