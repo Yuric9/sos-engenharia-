@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import WorkOrderDetail from './pages/WorkOrderDetail';
@@ -10,7 +10,7 @@ import Usuarios from './pages/Usuarios';
 import Reports from './pages/Reports';
 import ArchivedOrders from './pages/ArchivedOrders';
 import { WorkOrder } from './types';
-import { loadOrders, normalizeOrders, nextOrderNumber, recalcOverdue, saveOrders } from './lib/storage';
+import { loadOrders, normalizeOrders, recalcOverdue, saveOrders } from './lib/storage';
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
 
@@ -42,9 +42,6 @@ export default function App(){
   const [selected,setSelected]=useState<number|null>(null);
   const [view,setView]=useState<View>('dashboard');
 
-  useEffect(()=>saveCatalogs(catalogs),[catalogs]);
-  useEffect(()=>saveUsers(users),[users]);
-
   if(!session)return <Login onLogin={setSession}/>;
 
   const current=orders.find(x=>x.id===selected);
@@ -60,6 +57,24 @@ export default function App(){
     }
     setOrders(next);
     return true;
+  };
+
+  const persistCatalogs=(next:Catalogs)=>{
+    if(!saveCatalogs(next)){
+      alert('Não foi possível salvar o cadastro. O armazenamento deste navegador pode estar cheio.');
+      return;
+    }
+    setCatalogs(next);
+  };
+
+  const persistUsers=(next:AppUser[])=>{
+    if(!saveUsers(next)){
+      alert('Não foi possível salvar a alteração de usuário. O armazenamento deste navegador pode estar cheio.');
+      return;
+    }
+    setUsers(next);
+    const refreshed=next.find(x=>x.id===session.id&&x.active);
+    if(refreshed)setSession(refreshed);
   };
 
   const updateOrder=(os:WorkOrder)=>{
@@ -113,12 +128,12 @@ export default function App(){
         <button className="logout" onClick={signout}><LogOut size={18}/>Sair</button>
       </aside>
       <main className="main">
-        {view==='cadastros'?<Cadastros catalogs={catalogs} onChange={setCatalogs} isAdmin={isAdmin}/>
-        :view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={setUsers}/>
+        {view==='cadastros'?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>
+        :view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={persistUsers}/>
         :view==='reports'?<Reports orders={orders} onOpen={openOrder}/>
         :view==='archived'?<ArchivedOrders orders={orders} onOpen={openOrder}/>
         :view==='orders'?<WorkOrders orders={orders} onOpen={openOrder}/>
-        :view==='new'?<WorkOrderForm catalogs={catalogs} number={nextOrderNumber(orders)} onCancel={goDashboard} onSave={saveForm}/>
+        :view==='new'?<WorkOrderForm catalogs={catalogs} number={0} onCancel={goDashboard} onSave={saveForm}/>
         :view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={saveForm}/>
         :current?<WorkOrderDetail os={current} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={updateOrder} onDelete={()=>remove(current.id)}/>
         :<Dashboard orders={orders} onOpen={openOrder} onNew={()=>setView('new')}/>} 
