@@ -1,47 +1,54 @@
-import { useState } from 'react';
-import { Plus, Power, Trash2 } from 'lucide-react';
-import { AppUser, UserRole } from '../lib/auth';
+import { FormEvent, useState } from 'react';
+import { Plus, Power, Trash2, X } from 'lucide-react';
+import { AppUser, UserRole, applyPassword } from '../lib/auth';
 
 export default function Usuarios({users,onChange}:{users:AppUser[];onChange:(u:AppUser[])=>void}){
  const [editing,setEditing]=useState<AppUser|null>(null);
+ const [creating,setCreating]=useState(false);
+ const [name,setName]=useState('');
+ const [login,setLogin]=useState('');
+ const [password,setPassword]=useState('');
+ const [role,setRole]=useState<UserRole>('OPERADOR');
+ const [error,setError]=useState('');
  const activeAdminCount=users.filter(x=>x.role==='ADMIN'&&x.active).length;
 
- const add=()=>{
-  const name=prompt('Nome do usuário');if(!name)return;
-  const login=prompt('Login');if(!login)return;
-  const password=prompt('Senha inicial');if(!password)return;
-  const role=((prompt('Perfil: ADMIN ou OPERADOR','OPERADOR')||'OPERADOR').toUpperCase()==='ADMIN'?'ADMIN':'OPERADOR') as UserRole;
-  onChange([...users,{id:Date.now(),name,login,password,role,active:true}]);
- };
+ const reset=()=>{setEditing(null);setCreating(false);setName('');setLogin('');setPassword('');setRole('OPERADOR');setError('')};
+ const beginCreate=()=>{reset();setCreating(true)};
+ const beginEdit=(u:AppUser)=>{setCreating(false);setEditing(u);setName(u.name);setLogin(u.login);setPassword('');setRole(u.role);setError('')};
 
- const edit=(u:AppUser)=>{
-  const name=prompt('Nome',u.name)||u.name;
-  const login=prompt('Login',u.login)||u.login;
-  const password=prompt('Nova senha (deixe vazio para manter)','')||u.password;
-  const role=((prompt('Perfil: ADMIN ou OPERADOR',u.role)||u.role).toUpperCase()==='ADMIN'?'ADMIN':'OPERADOR') as UserRole;
-  if(u.active&&u.role==='ADMIN'&&role!=='ADMIN'&&activeAdminCount<=1){
-   alert('Não é possível remover o perfil do último Admin ativo.');
-   return;
-  }
-  onChange(users.map(x=>x.id===u.id?{...x,name,login,password,role}:x));
-  setEditing(null);
+ const submit=async(e:FormEvent)=>{
+  e.preventDefault();setError('');
+  const cleanName=name.trim(), cleanLogin=login.trim();
+  if(!cleanName||!cleanLogin){setError('Informe nome e login.');return}
+  if(users.some(x=>x.login.toLowerCase()===cleanLogin.toLowerCase()&&x.id!==editing?.id)){setError('Este login já está em uso.');return}
+  try{
+   if(editing){
+    if(editing.active&&editing.role==='ADMIN'&&role!=='ADMIN'&&activeAdminCount<=1){setError('Não é possível remover o perfil do último Admin ativo.');return}
+    let next={...editing,name:cleanName,login:cleanLogin,role};
+    if(password)next=await applyPassword(next,password);
+    onChange(users.map(x=>x.id===editing.id?next:x));
+   }else{
+    if(!password){setError('Informe uma senha inicial.');return}
+    let next:AppUser={id:Date.now(),name:cleanName,login:cleanLogin,role,active:true};
+    next=await applyPassword(next,password);
+    onChange([...users,next]);
+   }
+   reset();
+  }catch(err){setError(err instanceof Error?err.message:'Não foi possível salvar o usuário.')}
  };
 
  const toggle=(u:AppUser)=>{
-  if(u.active&&u.role==='ADMIN'&&activeAdminCount<=1){
-   alert('Não é possível inativar o último Admin ativo.');
-   return;
-  }
+  if(u.active&&u.role==='ADMIN'&&activeAdminCount<=1){alert('Não é possível inativar o último Admin ativo.');return}
   onChange(users.map(x=>x.id===u.id?{...x,active:!x.active}:x));
  };
-
  const remove=(u:AppUser)=>{
   if(activeAdminCount<=1&&u.role==='ADMIN'&&u.active)return alert('Não é possível excluir o último Admin ativo.');
   if(confirm(`Excluir usuário ${u.name}?`))onChange(users.filter(x=>x.id!==u.id));
  };
 
  return <>
-  <header className="topbar"><div><h1>Usuários</h1><p>Administração de acesso ao S.O.S.</p></div><button className="primary" onClick={add}><Plus size={18}/>Novo usuário</button></header>
-  <section className="table-card"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>{users.map(u=><tr key={u.id}><td><b>{u.name}</b></td><td>{u.login}</td><td>{u.role}</td><td>{u.active?'Ativo':'Inativo'}</td><td><div className="actions"><button onClick={()=>edit(u)}>Editar</button><button onClick={()=>toggle(u)}><Power size={14}/>{u.active?'Inativar':'Ativar'}</button><button className="danger" onClick={()=>remove(u)}><Trash2 size={14}/>Excluir</button></div></td></tr>)}</tbody></table></section>
+  <header className="topbar"><div><h1>Usuários</h1><p>Administração de acesso ao S.O.S.</p></div><button className="primary" onClick={beginCreate}><Plus size={18}/>Novo usuário</button></header>
+  {(creating||editing)&&<section className="panel" style={{marginBottom:18}}><div className="panel-title"><h3>{editing?'Editar usuário':'Novo usuário'}</h3><button onClick={reset}><X size={16}/>Cancelar</button></div><form onSubmit={submit} className="form-grid"><label><span>Nome</span><input value={name} onChange={e=>setName(e.target.value)}/></label><label><span>Login</span><input value={login} autoComplete="off" onChange={e=>setLogin(e.target.value)}/></label><label><span>{editing?'Nova senha (opcional)':'Senha inicial'}</span><input type="password" value={password} autoComplete="new-password" onChange={e=>setPassword(e.target.value)}/></label><label><span>Perfil</span><select value={role} onChange={e=>setRole(e.target.value as UserRole)}><option value="OPERADOR">OPERADOR</option><option value="ADMIN">ADMIN</option></select></label>{error&&<p className="login-error">{error}</p>}<div><button className="primary" type="submit">Salvar usuário</button></div></form></section>}
+  <section className="table-card"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>{users.map(u=><tr key={u.id}><td><b>{u.name}</b></td><td>{u.login}</td><td>{u.role}</td><td>{u.active?'Ativo':'Inativo'}</td><td><div className="actions"><button onClick={()=>beginEdit(u)}>Editar</button><button onClick={()=>toggle(u)}><Power size={14}/>{u.active?'Inativar':'Ativar'}</button><button className="danger" onClick={()=>remove(u)}><Trash2 size={14}/>Excluir</button></div></td></tr>)}</tbody></table></section>
  </>;
 }
