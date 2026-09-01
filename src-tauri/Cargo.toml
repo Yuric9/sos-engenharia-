@@ -1,6 +1,6 @@
 [package]
 name = "sos-desktop"
-version = "0.4.0"
+version = "0.5.0"
 description = "S.O.S - Sistema de Ordens de Manutencao"
 authors = ["S.O.S"]
 edition = "2021"
