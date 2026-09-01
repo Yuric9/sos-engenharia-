@@ -1,4 +1,3 @@
-export const SNAPSHOT_ORDERS='orders';
 export const SNAPSHOT_CATALOGS='catalogs';
 export const SNAPSHOT_USERS='users';
 
@@ -13,32 +12,33 @@ async function invoke<T>(command:string,args?:Record<string,unknown>):Promise<T>
 
 export async function loadDesktopSnapshot<T>(key:string):Promise<T|null>{
   if(!isDesktopMode())return null;
-  try{
-    const raw=await invoke<string|null>('load_snapshot',{key});
-    return raw?JSON.parse(raw) as T:null;
-  }catch(error){
-    console.error(`Falha ao carregar snapshot ${key} do SQLite.`,error);
-    return null;
-  }
+  try{const raw=await invoke<string|null>('load_snapshot',{key});return raw?JSON.parse(raw) as T:null}catch(error){console.error(`Falha ao carregar snapshot ${key} do SQLite.`,error);return null}
 }
 
 export async function saveDesktopSnapshot<T>(key:string,value:T):Promise<boolean>{
   if(!isDesktopMode())return true;
-  try{
-    await invoke<void>('save_snapshot',{key,valueJson:JSON.stringify(value)});
-    return true;
-  }catch(error){
-    console.error(`Falha ao salvar snapshot ${key} no SQLite.`,error);
-    return false;
-  }
+  try{await invoke<void>('save_snapshot',{key,valueJson:JSON.stringify(value)});return true}catch(error){console.error(`Falha ao salvar snapshot ${key} no SQLite.`,error);return false}
 }
 
-export async function getDesktopDatabaseLocation():Promise<string|null>{
+export async function loadDesktopOrders<T>():Promise<T[]|null>{
   if(!isDesktopMode())return null;
-  try{return await invoke<string>('database_location');}catch{return null;}
+  try{return (await invoke<string[]>('load_orders')).map(raw=>JSON.parse(raw) as T)}catch(error){console.error('Falha ao carregar O.S. do SQLite.',error);return null}
 }
 
-export async function createDesktopBackup():Promise<string|null>{
-  if(!isDesktopMode())return null;
-  try{return await invoke<string>('backup_now');}catch(error){console.error('Falha ao criar backup do SQLite.',error);return null;}
+export async function saveDesktopOrder<T>(order:T,userId?:number):Promise<boolean>{
+  if(!isDesktopMode())return true;
+  try{await invoke<void>('save_order',{orderJson:JSON.stringify(order),userId:userId??null});return true}catch(error){console.error('Falha ao salvar O.S. no SQLite.',error);return false}
 }
+
+export async function deleteDesktopOrder(id:number,userId?:number):Promise<boolean>{
+  if(!isDesktopMode())return true;
+  try{await invoke<void>('delete_order',{id,userId:userId??null});return true}catch(error){console.error('Falha ao excluir O.S. no SQLite.',error);return false}
+}
+
+export async function replaceDesktopOrders<T>(orders:T[],userId?:number):Promise<boolean>{
+  if(!isDesktopMode())return true;
+  try{await invoke<void>('replace_orders',{orderJsons:orders.map(x=>JSON.stringify(x)),userId:userId??null});return true}catch(error){console.error('Falha ao importar O.S. no SQLite.',error);return false}
+}
+
+export async function getDesktopDatabaseLocation():Promise<string|null>{if(!isDesktopMode())return null;try{return await invoke<string>('database_location')}catch{return null}}
+export async function createDesktopBackup():Promise<string|null>{if(!isDesktopMode())return null;try{return await invoke<string>('backup_now')}catch(error){console.error('Falha ao criar backup do SQLite.',error);return null}}
