@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2, HardDrive } from 'lucide-react';
+import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2, HardDrive, FileSpreadsheet } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import WorkOrderDetail from './pages/WorkOrderDetail';
 import WorkOrderForm from './pages/WorkOrderForm';
@@ -9,6 +9,7 @@ import Cadastros from './pages/Cadastros';
 import Usuarios from './pages/Usuarios';
 import Reports from './pages/Reports';
 import ArchivedOrders from './pages/ArchivedOrders';
+import ImportSpreadsheet from './pages/ImportSpreadsheet';
 import DataBackup, { SosBackupFile } from './pages/DataBackup';
 import { WorkOrder } from './types';
 import { loadOrders, normalizeOrders, recalcOverdue, saveOrders } from './lib/storage';
@@ -16,12 +17,13 @@ import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
 import { createDesktopBackup, deleteDesktopOrder, getDesktopDatabaseLocation, isDesktopMode, loadDesktopOrders, loadDesktopSnapshot, replaceDesktopOrders, saveDesktopOrder, saveDesktopSnapshot, SNAPSHOT_CATALOGS, SNAPSHOT_USERS } from './lib/nativeDb';
 
-type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived'|'backup';
+type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived'|'backup'|'import';
 export const OWN_TEAM='Mão de obra própria — Departamento de Engenharia';
 export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
 export const INOVART_NAME='INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
 function yearOf(date:string){return /^\d{4}-/.test(date)?date.slice(0,4):''}
 function compact(v?:string){return (v||'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ')}
+function prepareHistoricalOrders(items:WorkOrder[]){const currentYear=new Date().getFullYear();return items.map(o=>{const y=Number(yearOf(o.openedAt));return y>0&&y<currentYear&&!o.archived?{...o,archived:true}:o})}
 
 function ensureWorkforceOptions(c:Catalogs):Catalogs{
   const obsolete=new Set(['Equipe da Secretaria','Empresa Terceirizada']);
@@ -33,7 +35,7 @@ function ensureWorkforceOptions(c:Catalogs):Catalogs{
 export default function App(){
   const desktop=isDesktopMode();
   const [session,setSession]=useState<AppUser|null>(()=>currentUser());
-  const [orders,setOrders]=useState<WorkOrder[]>(()=>normalizeOrders(loadOrders()));
+  const [orders,setOrders]=useState<WorkOrder[]>(()=>prepareHistoricalOrders(normalizeOrders(loadOrders())));
   const [catalogs,setCatalogs]=useState<Catalogs>(()=>ensureWorkforceOptions(loadCatalogs()));
   const [users,setUsers]=useState<AppUser[]>(()=>loadUsers());
   const [selected,setSelected]=useState<number|null>(null);const [view,setView]=useState<View>('dashboard');
@@ -44,7 +46,7 @@ export default function App(){
     (async()=>{
       const [savedOrders,savedCatalogs,savedUsers,location]=await Promise.all([loadDesktopOrders<WorkOrder>(),loadDesktopSnapshot<Catalogs>(SNAPSHOT_CATALOGS),loadDesktopSnapshot<AppUser[]>(SNAPSHOT_USERS),getDesktopDatabaseLocation()]);
       if(cancelled)return;
-      if(savedOrders){const normalized=normalizeOrders(savedOrders);saveOrders(normalized);setOrders(normalized);}
+      if(savedOrders){const raw=normalizeOrders(savedOrders);const normalized=prepareHistoricalOrders(raw);saveOrders(normalized);setOrders(normalized);if(raw.some((o,i)=>o.archived!==normalized[i]?.archived))await replaceDesktopOrders(normalized,currentUser()?.id);}
       if(savedCatalogs){const prepared=ensureWorkforceOptions(savedCatalogs);saveCatalogs(prepared);setCatalogs(prepared)}else await saveDesktopSnapshot(SNAPSHOT_CATALOGS,catalogs);
       if(savedUsers){saveUsers(savedUsers);setUsers(savedUsers)}else await saveDesktopSnapshot(SNAPSHOT_USERS,users);
       setDatabaseLocation(location);setSession(currentUser());setHydrating(false);
@@ -58,7 +60,7 @@ export default function App(){
   const goDashboard=()=>{setSelected(null);setView('dashboard')};
 
   const persistOrderChange=async(producer:(previous:WorkOrder[])=>WorkOrder[])=>{
-    const next=producer(orders).map(recalcOverdue);
+    const next=prepareHistoricalOrders(producer(orders)).map(recalcOverdue);
     if(desktop){
       const oldById=new Map(orders.map(o=>[o.id,o]));const nextById=new Map(next.map(o=>[o.id,o]));
       for(const item of next){const before=oldById.get(item.id);if(!before||JSON.stringify(before)!==JSON.stringify(item)){if(!await saveDesktopOrder(item,session.id)){alert('Não foi possível salvar a O.S. no banco SQLite do HD externo. Confira se o HD continua conectado.');return false}}}
@@ -72,33 +74,38 @@ export default function App(){
   const persistUsers=async(next:AppUser[])=>{if(desktop){if(!await saveDesktopSnapshot(SNAPSHOT_USERS,next)){alert('Não foi possível salvar o usuário no banco SQLite do HD externo.');return}saveUsers(next)}else if(!saveUsers(next)){alert('Não foi possível salvar a alteração de usuário.');return}setUsers(next);const refreshed=next.find(x=>x.id===session.id&&x.active);if(refreshed)setSession(refreshed)};
 
   const importBackup=async(backup:SosBackupFile)=>{
-    const nextOrders=normalizeOrders(backup.orders);const nextCatalogs=ensureWorkforceOptions(backup.catalogs);
+    const nextOrders=prepareHistoricalOrders(normalizeOrders(backup.orders));const nextCatalogs=ensureWorkforceOptions(backup.catalogs);
     if(desktop){if(!await replaceDesktopOrders(nextOrders,session.id)||!await saveDesktopSnapshot(SNAPSHOT_CATALOGS,nextCatalogs)){alert('A importação não foi concluída no banco do HD externo.');return false}}
     if(!saveOrders(nextOrders)||!saveCatalogs(nextCatalogs)){alert('Não foi possível atualizar o armazenamento local de apoio.');return false}
     setOrders(nextOrders);setCatalogs(nextCatalogs);setSelected(null);setView('dashboard');return true;
+  };
+  const importSpreadsheetOrders=async(items:WorkOrder[])=>{
+    if(!isAdmin)return false;
+    const used=new Set(orders.map(o=>o.id));let nextId=Date.now();
+    const safe=items.map(item=>{let id=item.id;while(used.has(id)){id=++nextId}used.add(id);return {...item,id}});
+    const merged=prepareHistoricalOrders(normalizeOrders([...safe,...orders])).map(recalcOverdue);
+    if(desktop){if(!await replaceDesktopOrders(merged,session.id)){alert('A planilha não pôde ser gravada no banco do HD externo.');return false}}
+    if(!saveOrders(merged)){alert('Não foi possível atualizar o armazenamento local de apoio.');return false}
+    setOrders(merged);setSelected(null);return true;
   };
 
   const updateOrder=async(os:WorkOrder)=>{if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return}const updated=recalcOverdue(os);const saved=await persistOrderChange(previous=>previous.map(x=>x.id===updated.id?updated:x));if(saved)setSelected(updated.id)};
   const saveForm=async(os:WorkOrder)=>{
     if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return}
-    const exists=orders.some(x=>x.id===os.id);const candidates=orders.filter(x=>x.id!==os.id);
-    const sameNumberYear=candidates.find(x=>x.number===os.number&&yearOf(x.openedAt)===yearOf(os.openedAt));
-    const sameNumberOtherYear=!sameNumberYear&&candidates.find(x=>x.number===os.number);
-    const verySimilar=!sameNumberYear&&candidates.find(x=>x.openedAt===os.openedAt&&compact(x.unidade)===compact(os.unidade)&&compact(x.serviceType)===compact(os.serviceType)&&compact(x.description)===compact(os.description));
+    const exists=orders.some(x=>x.id===os.id);const candidates=orders.filter(x=>x.id!==os.id);const source=compact(os.importOrigin||os.secretaria);
+    const sameNumberYear=candidates.find(x=>x.number===os.number&&yearOf(x.openedAt)===yearOf(os.openedAt)&&compact(x.importOrigin||x.secretaria)===source);
+    const sameNumberOtherYear=!sameNumberYear&&candidates.find(x=>x.number===os.number&&compact(x.importOrigin||x.secretaria)===source);
+    const verySimilar=!sameNumberYear&&candidates.find(x=>compact(x.importOrigin||x.secretaria)===source&&x.openedAt===os.openedAt&&compact(x.unidade)===compact(os.unidade)&&compact(x.serviceType)===compact(os.serviceType)&&compact(x.description)===compact(os.description));
     const duplicate=sameNumberYear||sameNumberOtherYear||verySimilar;
-    if(duplicate){
-      const duplicateYear=yearOf(duplicate.openedAt);const currentYear=yearOf(os.openedAt);
-      const reason=sameNumberYear?`Já existe a O.S. ${os.number}/${currentYear}.`:sameNumberOtherYear?`O número ${os.number} já aparece na O.S. ${duplicate.number}/${duplicateYear}.`:'Já existe uma O.S. com a mesma data, unidade, tipo de serviço e descrição.';
-      if(!confirm(`Atenção: possível O.S. duplicada.\n\n${reason}\n\nDeseja salvar mesmo assim?`))return;
-    }
+    if(duplicate){const duplicateYear=yearOf(duplicate.openedAt);const currentYear=yearOf(os.openedAt);const reason=sameNumberYear?`Já existe a O.S. ${os.number}/${currentYear} nesta mesma origem.`:sameNumberOtherYear?`O número ${os.number} já aparece em ${duplicateYear} nesta mesma origem.`:'Já existe uma O.S. muito parecida nesta mesma origem.';if(!confirm(`Atenção: possível O.S. duplicada.\n\n${reason}\n\nDeseja salvar mesmo assim?`))return;}
     const updated=recalcOverdue(os);const saved=await persistOrderChange(previous=>exists?previous.map(x=>x.id===updated.id?updated:x):[updated,...previous]);if(saved){setSelected(updated.id);setView('dashboard')}
   };
   const remove=async(id:number)=>{if(!isAdmin)return alert('Somente Admin pode excluir uma O.S.');const saved=await persistOrderChange(previous=>previous.filter(o=>o.id!==id));if(saved)goDashboard()};
   const signout=()=>{logout();setSession(null)};const openOrder=(id:number)=>{setSelected(id);setView('dashboard')};
 
   return <div className="institution-shell"><header className="municipal-header"><div className="department-title"><Building2 size={18}/><div><b>Departamento de Engenharia</b><span>S.O.S — Sistema de Ordens de Manutenção</span></div></div><div className="user-chip"><strong>{session.name}</strong><span>{session.role}</span></div></header><div className="app-shell"><aside className="sidebar"><div className="side-heading"><strong>S.O.S</strong><span>Gestão de obras e manutenções</span></div><nav>
-  <button className={view==='dashboard'&&!selected?'active':''} onClick={goDashboard}><LayoutDashboard size={18}/>Dashboard</button><button className={view==='new'?'active':''} onClick={()=>{setSelected(null);setView('new')}}><ClipboardPlus size={18}/>Nova O.S.</button><button className={view==='orders'?'active':''} onClick={()=>{setSelected(null);setView('orders')}}><FileText size={18}/>Ordens de Serviço</button><button className={view==='cadastros'?'active':''} onClick={()=>{setSelected(null);setView('cadastros')}}><Database size={18}/>Cadastros</button><button className={view==='reports'?'active':''} onClick={()=>{setSelected(null);setView('reports')}}><BarChart3 size={18}/>Relatórios</button><button className={view==='archived'?'active':''} onClick={()=>{setSelected(null);setView('archived')}}><Archive size={18}/>Arquivadas</button>{isAdmin&&<button className={view==='usuarios'?'active':''} onClick={()=>{setSelected(null);setView('usuarios')}}><Users size={18}/>Usuários</button>}{isAdmin&&<button className={view==='backup'?'active':''} onClick={()=>{setSelected(null);setView('backup')}}><HardDrive size={18}/>Backup / Migração</button>}
+  <button className={view==='dashboard'&&!selected?'active':''} onClick={goDashboard}><LayoutDashboard size={18}/>Dashboard</button><button className={view==='new'?'active':''} onClick={()=>{setSelected(null);setView('new')}}><ClipboardPlus size={18}/>Nova O.S.</button><button className={view==='orders'?'active':''} onClick={()=>{setSelected(null);setView('orders')}}><FileText size={18}/>Ordens de Serviço</button><button className={view==='cadastros'?'active':''} onClick={()=>{setSelected(null);setView('cadastros')}}><Database size={18}/>Cadastros</button><button className={view==='reports'?'active':''} onClick={()=>{setSelected(null);setView('reports')}}><BarChart3 size={18}/>Relatórios</button><button className={view==='archived'?'active':''} onClick={()=>{setSelected(null);setView('archived')}}><Archive size={18}/>Arquivadas</button>{isAdmin&&<div style={{fontSize:10,fontWeight:800,letterSpacing:'.12em',color:'#b8d8ca',padding:'16px 12px 5px'}}>ADMINISTRATIVO</div>}{isAdmin&&<button className={view==='import'?'active':''} onClick={()=>{setSelected(null);setView('import')}}><FileSpreadsheet size={18}/>Importar Planilha</button>}{isAdmin&&<button className={view==='usuarios'?'active':''} onClick={()=>{setSelected(null);setView('usuarios')}}><Users size={18}/>Usuários</button>}{isAdmin&&<button className={view==='backup'?'active':''} onClick={()=>{setSelected(null);setView('backup')}}><HardDrive size={18}/>Backup / Migração</button>}
  </nav><button className="logout" onClick={signout}><LogOut size={18}/>Sair</button></aside><main className="main">
- {view==='backup'&&isAdmin?<DataBackup orders={orders} catalogs={catalogs} desktop={desktop} databaseLocation={databaseLocation} onImport={importBackup} onNativeBackup={createDesktopBackup}/>:view==='cadastros'?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>:view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={persistUsers}/>:view==='reports'?<Reports orders={orders} onOpen={openOrder}/>:view==='archived'?<ArchivedOrders orders={orders} onOpen={openOrder}/>:view==='orders'?<WorkOrders orders={orders} onOpen={openOrder}/>:view==='new'?<WorkOrderForm catalogs={catalogs} number={0} onCancel={goDashboard} onSave={saveForm}/>:view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={saveForm}/>:current?<WorkOrderDetail os={current} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={updateOrder} onDelete={()=>remove(current.id)} canDelete={isAdmin}/>:<Dashboard orders={orders} onOpen={openOrder} onNew={()=>setView('new')}/>} 
+ {view==='import'&&isAdmin?<ImportSpreadsheet orders={orders} onImport={importSpreadsheetOrders}/>:view==='backup'&&isAdmin?<DataBackup orders={orders} catalogs={catalogs} desktop={desktop} databaseLocation={databaseLocation} onImport={importBackup} onNativeBackup={createDesktopBackup}/>:view==='cadastros'?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>:view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={persistUsers}/>:view==='reports'?<Reports orders={orders} onOpen={openOrder}/>:view==='archived'?<ArchivedOrders orders={orders} onOpen={openOrder}/>:view==='orders'?<WorkOrders orders={orders} onOpen={openOrder}/>:view==='new'?<WorkOrderForm catalogs={catalogs} number={0} onCancel={goDashboard} onSave={saveForm}/>:view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={saveForm}/>:current?<WorkOrderDetail os={current} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={updateOrder} onDelete={()=>remove(current.id)} canDelete={isAdmin}/>:<Dashboard orders={orders} onOpen={openOrder} onNew={()=>setView('new')}/>} 
  </main></div><footer className="municipal-footer"><span>Prefeitura Municipal de Trindade • Departamento de Engenharia</span><span>{desktop?`Banco SQLite externo${databaseLocation?` • ${databaseLocation}`:''}`:'S.O.S — Sistema interno de Ordens de Manutenção'}</span></footer></div>
 }
