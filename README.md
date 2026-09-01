@@ -1,35 +1,41 @@
-# S.O.S — Sistema Web de Ordens de Manutenção
+# S.O.S — Sistema de Ordens de Manutenção
 
-Sistema web para gestão das Ordens de Serviço de manutenção predial da Engenharia.
+Sistema para gestão das Ordens de Serviço de manutenção predial do Departamento de Engenharia.
 
-## Arquitetura atual — fase de desenvolvimento
+## Versão atual — 0.4.0
 - React + Vite + TypeScript
-- Aplicação web acessada pelo navegador
-- Persistência provisória em `localStorage` para validar o fluxo antes da escolha do banco definitivo
-- Sem Cloudflare, D1, R2 ou Workers
+- Desktop Windows com Tauri v2
+- Modo portátil para execução em HD externo
+- SQLite no próprio HD (`sos-data/data/sos.db`)
+- O.S. persistidas individualmente no SQLite, com migração automática do snapshot legado
+- Auditoria de criação, alteração, exclusão e importação de O.S.
+- Backup manual e backup automático diário ao iniciar
+- Login Admin/Operador sem credenciais padrão expostas
+- Senhas armazenadas com PBKDF2-SHA256 + salt no armazenamento de credenciais
+- Bloqueio temporário após 5 tentativas incorretas
+- Exportação JSON não inclui usuários, hashes ou senhas
 
-## Funcional na v0.3
-- Dashboard com indicadores, gráfico mensal, pesquisa e filtros.
-- Cadastro de Nova O.S. com numeração automática.
-- Ficha completa ao clicar na O.S.
-- Edição dos dados da O.S., status e progresso.
-- Arquivar e restaurar O.S.
-- Exclusão com confirmação.
-- Materiais, observações, equipe, prazo e ofício.
-- Upload e exclusão de fotos/documentos pequenos durante a fase de teste.
-- Impressão da ficha.
-- Geração de resumo para copiar e enviar pelo WhatsApp.
-- Dados de teste persistem no navegador entre recarregamentos.
+## Estrutura portátil
+Ao executar junto de `portable.flag`, o sistema usa:
+- `sos-data/data/sos.db`
+- `sos-data/anexos/`
+- `sos-data/backups/`
+- `sos-data/logs/`
+
+## Estado da arquitetura
+A persistência das O.S. deixou de usar um único blob global e passou a usar um registro individual por O.S. no SQLite, reduzindo o risco de perda da base inteira em uma única gravação. Cadastros e perfis ainda possuem uma camada de snapshot de compatibilidade enquanto a migração relacional completa é concluída.
+
+Os anexos possuem limite de 900 KB por arquivo no frontend, mas ainda ficam incorporados à O.S. em base64. A próxima etapa arquitetural é mover os binários para `sos-data/anexos/` e manter somente metadados/caminho no banco.
+
+## Segurança
+Não existem mais usuários `admin/admin123` ou `operador/operador123` predefinidos. No primeiro acesso o sistema exige criação do primeiro administrador. Senhas não são exportadas no backup JSON. Após cinco tentativas incorretas o usuário é bloqueado por 15 minutos.
 
 ## Importante
-O armazenamento do navegador é apenas provisório. Ele não é o banco de produção e não deve ser usado como cópia única de dados oficiais. Após a validação da interface e das regras, será conectado um banco central e armazenamento de arquivos no servidor.
+Enquanto a migração relacional e o armazenamento físico dos anexos não forem concluídos e validados em campo, mantenha backups regulares e não use o HD externo como única cópia de dados oficiais. Nunca remova o HD enquanto o S.O.S estiver aberto.
 
 ## Próximos marcos
-1. Login e perfis Admin/Operador.
-2. Cadastros em cascata Secretaria > Unidade > Local.
-3. Cadastro estruturado de equipes, técnicos e materiais.
-4. Histórico/auditoria completo por alteração.
-5. Andamentos, paralisações e mão de obra estruturados.
-6. Relatórios e PDF com início/durante/final.
-7. Importador da planilha legada.
-8. Migração do armazenamento provisório para banco definitivo.
+1. Mover anexos para `sos-data/anexos/` com validação no Rust.
+2. Migrar cadastros e usuários para tabelas relacionais dedicadas.
+3. Ampliar auditoria para usuários, cadastros e autenticação no SQLite.
+4. Estruturar andamentos, paralisações, materiais e mão de obra nas tabelas relacionais existentes.
+5. Adicionar testes automatizados de autenticação, persistência, importação e regras de O.S.
