@@ -1,11 +1,38 @@
 import { useRef } from 'react';
 import { ArrowLeft, Pencil, Archive, Trash2, Printer, Share2, Plus, Camera, FileText, Clock3, Package, Users, MessageSquareText } from 'lucide-react';
 import { Attachment, WorkOrder } from '../types';
+
 export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete}:{os:WorkOrder;onBack:()=>void;onEdit:()=>void;onChange:(os:WorkOrder)=>void;onDelete:()=>void}){
  const fileRef=useRef<HTMLInputElement>(null);
  const summary=`O.S. ${os.number} — ${os.secretaria} / ${os.unidade}\nServiço: ${os.description}\nEquipe: ${os.team}\nStatus: ${os.status.replaceAll('_',' ')}\nProgresso: ${os.progress}%\nPrazo: ${new Date(os.deadline+'T12:00:00').toLocaleDateString('pt-BR')}\nMateriais: ${os.materialsSummary||'Não informado'}`;
  const share=async()=>{try{await navigator.clipboard.writeText(summary);alert('Resumo copiado. Você pode colar no WhatsApp.')}catch{prompt('Copie o resumo:',summary)}};
- const addFiles=(files:FileList|null)=>{if(!files)return;Array.from(files).forEach(file=>{if(file.size>900000){alert(`${file.name}: para esta base provisória, use arquivos de até 900 KB.`);return;}const reader=new FileReader();reader.onload=()=>{const item:Attachment={id:crypto.randomUUID(),name:file.name,type:file.type,category:file.type.startsWith('image/')?'DURANTE':'OUTRO',dataUrl:String(reader.result),createdAt:new Date().toISOString()};const attachments=[...(os.attachments||[]),item];onChange({...os,attachments,attachmentsCount:attachments.length})};reader.readAsDataURL(file)})};
+
+ const readAttachment=(file:File)=>new Promise<Attachment>((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve({id:crypto.randomUUID(),name:file.name,type:file.type,category:file.type.startsWith('image/')?'DURANTE':'OUTRO',dataUrl:String(reader.result),createdAt:new Date().toISOString()});
+  reader.onerror=()=>reject(reader.error);
+  reader.readAsDataURL(file);
+ });
+
+ const addFiles=async(files:FileList|null)=>{
+  if(!files)return;
+  const selected=Array.from(files);
+  const valid=selected.filter(file=>{
+   if(file.size>900000){alert(`${file.name}: para esta base provisória, use arquivos de até 900 KB.`);return false;}
+   return true;
+  });
+  if(valid.length===0)return;
+  try{
+   const added=await Promise.all(valid.map(readAttachment));
+   const attachments=[...(os.attachments||[]),...added];
+   onChange({...os,attachments,attachmentsCount:attachments.length});
+  }catch{
+   alert('Não foi possível ler um ou mais arquivos selecionados. Tente novamente.');
+  }finally{
+   if(fileRef.current)fileRef.current.value='';
+  }
+ };
+
  const delAttachment=(id:string)=>{if(!confirm('Excluir este anexo da O.S.?'))return;const attachments=(os.attachments||[]).filter(a=>a.id!==id);onChange({...os,attachments,attachmentsCount:attachments.length})};
  const archive=()=>onChange({...os,archived:!os.archived});
  const remove=()=>{if(confirm(`Excluir definitivamente a O.S. ${os.number}?`))onDelete()};
