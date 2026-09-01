@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2 } from 'lucide-react';
+import { LayoutDashboard, ClipboardPlus, FileText, Database, BarChart3, Archive, LogOut, Users, Building2, HardDrive } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import WorkOrderDetail from './pages/WorkOrderDetail';
 import WorkOrderForm from './pages/WorkOrderForm';
@@ -9,11 +9,13 @@ import Cadastros from './pages/Cadastros';
 import Usuarios from './pages/Usuarios';
 import Reports from './pages/Reports';
 import ArchivedOrders from './pages/ArchivedOrders';
+import DataBackup, { SosBackupFile } from './pages/DataBackup';
 import { WorkOrder } from './types';
 import { loadOrders, normalizeOrders, recalcOverdue, saveOrders } from './lib/storage';
 import { AppUser, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
 import {
+  createDesktopBackup,
   getDesktopDatabaseLocation,
   isDesktopMode,
   loadDesktopSnapshot,
@@ -23,7 +25,7 @@ import {
   SNAPSHOT_USERS
 } from './lib/nativeDb';
 
-type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived';
+type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived'|'backup';
 
 export const OWN_TEAM='Mão de obra própria — Departamento de Engenharia';
 export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
@@ -94,7 +96,7 @@ export default function App(){
       setHydrating(false);
     })();
     return()=>{cancelled=true};
-  // A carga do SQLite deve ocorrer apenas uma vez na inicialização.
+  // Carga única do SQLite portátil na inicialização.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
@@ -152,6 +154,38 @@ export default function App(){
     if(refreshed)setSession(refreshed);
   };
 
+  const importBackup=async(backup:SosBackupFile)=>{
+    const nextOrders=normalizeOrders(backup.orders);
+    const nextCatalogs=ensureWorkforceOptions(backup.catalogs);
+    const nextUsers=backup.users;
+
+    if(desktop){
+      const saved=await Promise.all([
+        saveDesktopSnapshot(SNAPSHOT_ORDERS,nextOrders),
+        saveDesktopSnapshot(SNAPSHOT_CATALOGS,nextCatalogs),
+        saveDesktopSnapshot(SNAPSHOT_USERS,nextUsers)
+      ]);
+      if(saved.some(x=>!x)){
+        alert('A importação não foi concluída no banco do HD externo. Nenhuma mudança será aplicada à tela.');
+        return false;
+      }
+    }
+
+    if(!saveOrders(nextOrders)||!saveCatalogs(nextCatalogs)||!saveUsers(nextUsers)){
+      alert('Não foi possível atualizar o armazenamento local de apoio.');
+      return false;
+    }
+
+    setOrders(nextOrders);
+    setCatalogs(nextCatalogs);
+    setUsers(nextUsers);
+    setSelected(null);
+    setView('dashboard');
+    const refreshed=nextUsers.find(x=>x.id===session.id&&x.active);
+    setSession(refreshed||null);
+    return true;
+  };
+
   const updateOrder=async(os:WorkOrder)=>{
     if(!Number.isInteger(os.number)||os.number<=0){alert('Informe um número de O.S. válido.');return;}
     const updated=recalcOverdue(os);
@@ -199,11 +233,13 @@ export default function App(){
           <button className={view==='reports'?'active':''} onClick={()=>{setSelected(null);setView('reports')}}><BarChart3 size={18}/>Relatórios</button>
           <button className={view==='archived'?'active':''} onClick={()=>{setSelected(null);setView('archived')}}><Archive size={18}/>Arquivadas</button>
           {isAdmin&&<button className={view==='usuarios'?'active':''} onClick={()=>{setSelected(null);setView('usuarios')}}><Users size={18}/>Usuários</button>}
+          {isAdmin&&<button className={view==='backup'?'active':''} onClick={()=>{setSelected(null);setView('backup')}}><HardDrive size={18}/>Backup / Migração</button>}
         </nav>
         <button className="logout" onClick={signout}><LogOut size={18}/>Sair</button>
       </aside>
       <main className="main">
-        {view==='cadastros'?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>
+        {view==='backup'&&isAdmin?<DataBackup orders={orders} catalogs={catalogs} users={users} desktop={desktop} databaseLocation={databaseLocation} onImport={importBackup} onNativeBackup={createDesktopBackup}/>
+        :view==='cadastros'?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>
         :view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={persistUsers}/>
         :view==='reports'?<Reports orders={orders} onOpen={openOrder}/>
         :view==='archived'?<ArchivedOrders orders={orders} onOpen={openOrder}/>
