@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Pencil, Archive, Trash2, Printer, Share2, Plus, Camera, FileText, Clock3, Package, Users, MessageSquareText } from 'lucide-react';
+import { ArrowLeft, Pencil, Archive, Trash2, Printer, Share2, Plus, Camera, FileText, Clock3, Package, Users, MessageSquareText, ExternalLink } from 'lucide-react';
 import { Attachment, WorkOrder } from '../types';
 import { deleteDesktopAttachment, isDesktopMode, readDesktopAttachment, saveDesktopAttachment } from '../lib/nativeDb';
 
@@ -27,7 +27,7 @@ function fileToDataUrl(file:File):Promise<string>{
  });
 }
 
-export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete}:{os:WorkOrder;onBack:()=>void;onEdit:()=>void;onChange:(os:WorkOrder)=>void;onDelete:()=>void}){
+export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canDelete}:{os:WorkOrder;onBack:()=>void;onEdit:()=>void;onChange:(os:WorkOrder)=>void;onDelete:()=>void;canDelete:boolean}){
  const fileRef=useRef<HTMLInputElement>(null);
  const desktop=isDesktopMode();
  const [previews,setPreviews]=useState<Record<string,string>>({});
@@ -80,6 +80,12 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete}:{os
   }finally{if(fileRef.current)fileRef.current.value='';}
  };
 
+ const openAttachment=async(a:Attachment)=>{
+  let url=a.dataUrl||null;
+  if(!url&&desktop&&a.storedPath)url=await readDesktopAttachment(a.storedPath,a.type);
+  if(!url){alert('Não foi possível abrir este arquivo.');return}
+  const w=window.open();if(w)w.location.href=url;else alert('O navegador interno bloqueou a nova janela.');
+ };
  const delAttachment=async(a:Attachment)=>{
   if(!confirm('Excluir este anexo da O.S.?'))return;
   if(desktop&&a.storedPath){
@@ -91,14 +97,15 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete}:{os
  };
  const archive=()=>onChange({...os,archived:!os.archived});
  const remove=()=>{if(confirm(`Excluir definitivamente a O.S. ${os.number}?`))onDelete()};
- return <><header className="topbar"><div className="title-row"><button className="icon-btn" onClick={onBack}><ArrowLeft size={20}/></button><div><h1>O.S. {os.number}</h1><p>{os.secretaria} • {os.unidade}{os.local?` • ${os.local}`:''}</p></div></div><div className="actions"><button onClick={onEdit}><Pencil size={16}/>Editar</button><button onClick={archive}><Archive size={16}/>{os.archived?'Restaurar':'Arquivar'}</button><button onClick={()=>window.print()}><Printer size={16}/>Imprimir</button><button onClick={share}><Share2 size={16}/>Gerar resumo</button><button className="danger" onClick={remove}><Trash2 size={16}/>Excluir</button></div></header>
+ const materialPdfs=(os.attachments||[]).filter(a=>a.category==='MATERIAL');
+ return <><header className="topbar"><div className="title-row"><button className="icon-btn" onClick={onBack}><ArrowLeft size={20}/></button><div><h1>O.S. {os.number}</h1><p>{os.secretaria} • {os.unidade}{os.local?` • ${os.local}`:''}</p></div></div><div className="actions"><button onClick={onEdit}><Pencil size={16}/>Editar</button><button onClick={archive}><Archive size={16}/>{os.archived?'Restaurar':'Arquivar'}</button><button onClick={()=>window.print()}><Printer size={16}/>Imprimir</button><button onClick={share}><Share2 size={16}/>Gerar resumo</button>{canDelete&&<button className="danger" onClick={remove}><Trash2 size={16}/>Excluir</button>}</div></header>
  <section className="detail-hero"><div><span className={`status s-${os.status.toLowerCase()}`}>{os.status.replaceAll('_',' ')}</span><h2>{os.serviceType}</h2><p>{os.description}</p></div><div className="progress-box"><div><span>Progresso</span><strong>{os.progress}%</strong></div><div className="progress-track"><i style={{width:`${os.progress}%`}}/></div><small>{os.overdueDays>0?`Atrasada há ${os.overdueDays} dias`:'Dentro do prazo'}</small></div></section>
  <section className="detail-grid"><article><span>Data de abertura</span><strong>{new Date(os.openedAt+'T12:00:00').toLocaleDateString('pt-BR')}</strong></article><article><span>Prazo</span><strong>{new Date(os.deadline+'T12:00:00').toLocaleDateString('pt-BR')}</strong></article><article><span>Tempo previsto</span><strong>{os.estimatedAmount} {os.estimatedUnit.toLowerCase()}</strong></article><article><span>Equipe</span><strong>{os.team}</strong><small>{os.workforceOrigin}</small></article></section>
  <div className="tabs"><button className="active">Resumo</button><button>Andamentos</button><button>Fotos e arquivos</button><button>Materiais</button><button>Mão de obra</button><button>Histórico</button><button>Encerramento</button></div>
  <section className="content-grid"><article className="panel"><div className="panel-title"><h3>Informações da O.S.</h3><button onClick={onEdit}><Pencil size={15}/>Editar</button></div><dl><dt>Secretaria</dt><dd>{os.secretaria}</dd><dt>Unidade</dt><dd>{os.unidade}</dd><dt>Local</dt><dd>{os.local||'—'}</dd><dt>Ofício</dt><dd>{os.officeDocument||'Sem ofício vinculado'}</dd><dt>Prioridade</dt><dd>{os.priority}</dd><dt>Atendida</dt><dd>{os.attended?'Sim':'Não'}</dd><dt>Observações</dt><dd>{os.observations||'—'}</dd></dl></article>
- <article className="panel"><div className="panel-title"><h3>Materiais</h3><button onClick={onEdit}><Plus size={15}/>Editar</button></div><p>{os.materialsSummary||'Nenhum material informado.'}</p><div className="mini-row"><Package size={17}/><span>Registro de materiais vinculado à O.S.</span></div></article>
+ <article className="panel"><div className="panel-title"><h3>Materiais</h3><button onClick={onEdit}><Plus size={15}/>Editar</button></div><p>{os.materialsSummary||'Nenhum material informado.'}</p>{materialPdfs.map(a=><div className="mini-row" key={a.id}><FileText size={17}/><div><b>{a.name}</b><span>Lista de materiais em PDF</span></div><button onClick={()=>openAttachment(a)}><ExternalLink size={14}/>Abrir</button></div>)}<div className="mini-row"><Package size={17}/><span>Registro de materiais vinculado à O.S.</span></div></article>
  <article className="panel wide"><div className="panel-title"><h3>Fotos e documentos</h3><button onClick={()=>fileRef.current?.click()}><Plus size={15}/>Anexar</button><input ref={fileRef} type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx" onChange={e=>addFiles(e.target.files)}/></div>
- <div className="attachment-summary">{(os.attachments||[]).length===0?<div><Camera/><strong>Nenhum anexo</strong><span>Adicione fotos, ofícios, prints ou comprovantes.</span></div>:(os.attachments||[]).map(a=><div key={a.id}>{a.type.startsWith('image/')&&(a.dataUrl||previews[a.id])?<img src={a.dataUrl||previews[a.id]} alt={a.name} style={{width:'100%',height:90,objectFit:'cover',borderRadius:8}}/>:<FileText/>}<strong>{a.name}</strong><span>{a.category}{a.sizeBytes?` • ${(a.sizeBytes/1024).toFixed(0)} KB`:''}</span><button onClick={()=>delAttachment(a)} style={{marginTop:8}}>Excluir</button></div>)}</div><p className="hint">{desktop?'Os anexos desta versão são gravados fisicamente na pasta sos-data/anexos do HD externo.':'Na versão web, anexos pequenos permanecem no armazenamento local para compatibilidade.'}</p></article>
+ <div className="attachment-summary">{(os.attachments||[]).length===0?<div><Camera/><strong>Nenhum anexo</strong><span>Adicione fotos, ofícios, prints ou comprovantes.</span></div>:(os.attachments||[]).map(a=><div key={a.id}>{a.type.startsWith('image/')&&(a.dataUrl||previews[a.id])?<img src={a.dataUrl||previews[a.id]} alt={a.name} style={{width:'100%',height:90,objectFit:'cover',borderRadius:8}}/>:<FileText/>}<strong>{a.name}</strong><span>{a.category}{a.sizeBytes?` • ${(a.sizeBytes/1024).toFixed(0)} KB`:''}</span>{!a.type.startsWith('image/')&&<button onClick={()=>openAttachment(a)} style={{marginTop:8}}><ExternalLink size={14}/>Abrir</button>}<button onClick={()=>delAttachment(a)} style={{marginTop:8}}>Excluir</button></div>)}</div><p className="hint">{desktop?'Os anexos desta versão são gravados fisicamente na pasta sos-data/anexos do HD externo.':'Na versão web, anexos pequenos permanecem no armazenamento local para compatibilidade.'}</p></article>
  <article className="panel"><div className="panel-title"><h3>Andamento</h3><button onClick={onEdit}><Plus size={15}/>Atualizar</button></div><div className="timeline"><div><Clock3/><p><b>Status atual</b><br/>{os.status.replaceAll('_',' ')} — {os.progress}% concluído.</p></div><div><MessageSquareText/><p><b>Observação</b><br/>{os.observations||'Nenhuma observação registrada.'}</p></div></div></article>
  <article className="panel"><div className="panel-title"><h3>Mão de obra</h3><button onClick={onEdit}><Plus size={15}/>Editar</button></div><div className="mini-row"><Users size={18}/><div><b>{os.team}</b><span>{os.estimatedAmount} {os.estimatedUnit.toLowerCase()} previstas • {os.workforceOrigin}</span></div></div></article></section></>
 }
