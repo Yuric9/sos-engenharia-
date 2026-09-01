@@ -30,11 +30,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Typecheck and build frontend
-        run: npm run build
+      - name: Typecheck frontend
+        run: npm run typecheck
 
-      - name: Build portable executable
-        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: Build production executable with Tauri
+        run: npm run tauri build -- --no-bundle
 
       - name: Prepare portable package
         shell: pwsh
@@ -47,6 +47,7 @@ jobs:
           Modo portátil para HD externo.
 
           Mantenha SOS-Engenharia.exe e portable.flag na mesma pasta do HD.
+          Esta versão foi compilada em modo de produção pelo Tauri e não depende de localhost.
           Ao iniciar, o sistema criará automaticamente:
           sos-data\data\sos.db
           sos-data\anexos\
