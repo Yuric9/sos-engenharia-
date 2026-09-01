@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LockKeyhole, LogIn, Building2, ShieldCheck } from 'lucide-react';
 import { login, AppUser, applyPassword, loadUsers, saveUsers } from '../lib/auth';
+import { isDesktopMode, saveDesktopSnapshot, SNAPSHOT_USERS } from '../lib/nativeDb';
 const PREF_LOGO='/prefeitura-trindade.png';
 
 export default function Login({onLogin}:{onLogin:(u:AppUser)=>void}){
@@ -19,6 +20,10 @@ export default function Login({onLogin}:{onLogin:(u:AppUser)=>void}){
     if(!name.trim()||!user.trim())throw new Error('Informe nome e usuário do administrador.');
     if(password!==confirmPassword)throw new Error('As senhas não conferem.');
     const admin=await applyPassword({id:Date.now(),name:name.trim(),login:user.trim(),role:'ADMIN',active:true},password);
+    if(isDesktopMode()){
+      const persisted=await saveDesktopSnapshot(SNAPSHOT_USERS,[admin]);
+      if(!persisted)throw new Error('Não foi possível gravar o administrador no banco do HD externo. Confira se o HD continua conectado.');
+    }
     if(!saveUsers([admin]))throw new Error('Não foi possível criar o administrador.');
     setFirstAccess(false);setPassword('');setConfirmPassword('');
     setError('Administrador criado. Agora entre com as credenciais cadastradas.');
