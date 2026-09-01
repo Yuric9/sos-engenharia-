@@ -25,6 +25,18 @@ function extractDescription(text:string){
  for(const pattern of patterns){const match=text.match(pattern);const value=cleanExtracted(match?.[1]);if(value.length>=3)return value}
  return '';
 }
+function toIsoDate(day:string,month:string,year:string){const dd=String(Number(day)).padStart(2,'0');const mm=/^\d+$/.test(month)?String(Number(month)).padStart(2,'0'):monthNumber(month);if(!mm)return '';return `${year}-${mm}-${dd}`}
+function extractOsDate(text:string){
+ const labeled=[
+  /(?:DATA\s+(?:DA\s+)?O\.?S\.?|DATA\s+DA\s+ORDEM\s+DE\s+SERVI(?:C|Ç)O|EMISS(?:A|Ã)O)\s*[:\-]?\s*(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/i,
+  /(?:DATA\s+(?:DA\s+)?O\.?S\.?|DATA\s+DA\s+ORDEM\s+DE\s+SERVI(?:C|Ç)O|EMISS(?:A|Ã)O)\s*[:\-]?\s*(\d{1,2})\s+de\s+([A-Za-zÀ-ÿçÇ]+)\s+de\s+(\d{4})/i
+ ];
+ for(const pattern of labeled){const m=text.match(pattern);if(m){const iso=toIsoDate(m[1],m[2],m[3]);if(iso)return iso}}
+ const trindade=text.match(/TRINDADE\s*[,\-]?\s*(?:GO\s*[,\-]?\s*)?(\d{1,2})\s+de\s+([A-Za-zÀ-ÿçÇ]+)\s+de\s+(\d{4})/i);if(trindade){const iso=toIsoDate(trindade[1],trindade[2],trindade[3]);if(iso)return iso}
+ const dateLong=text.match(/(\d{1,2})\s+de\s+([A-Za-zÀ-ÿçÇ]+)\s+de\s+(\d{4})/i);if(dateLong){const iso=toIsoDate(dateLong[1],dateLong[2],dateLong[3]);if(iso)return iso}
+ const dateShort=text.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})\b/);if(dateShort)return toIsoDate(dateShort[1],dateShort[2],dateShort[3]);
+ return '';
+}
 
 export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:{initial?:WorkOrder;number:number;onCancel:()=>void;onSave:(os:WorkOrder)=>void;catalogs:Catalogs}){
  const [f,setF]=useState<WorkOrder>(initial??{id:Date.now(),number,openedAt:new Date().toISOString().slice(0,10),secretaria:'',unidade:'',local:'',serviceType:'',description:'',team:'Equipe Própria',workforceOrigin:'Mão de obra própria',priority:'MEDIA',deadline:new Date().toISOString().slice(0,10),estimatedAmount:1,estimatedUnit:'DIARIAS',status:'ABERTA',progress:10,attended:false,archived:false,materialsSummary:'',notesCount:0,attachmentsCount:0,officeDocument:'',overdueDays:0,observations:'',attachments:[]});
@@ -44,8 +56,7 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
   try{
    const text=await readPdfText(file);const upper=normalize(text);const patch:Partial<WorkOrder>={};
    const osMatch=text.match(/(?:OS|O\.S\.|ORDEM\s+DE\s+SERVI(?:C|Ç)OS?)\s*(?:N[º°o.]*)?\s*[:#-]?\s*(\d+)\s*\/\s*(\d{4})/i);if(osMatch)patch.number=Number(osMatch[1]);
-   const dateLong=text.match(/(\d{1,2})\s+de\s+([A-Za-zÀ-ÿçÇ]+)\s+de\s+(\d{4})/i);const dateShort=text.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})\b/);
-   if(dateLong){const mm=monthNumber(dateLong[2]);if(mm)patch.openedAt=`${dateLong[3]}-${mm}-${String(Number(dateLong[1])).padStart(2,'0')}`}else if(dateShort)patch.openedAt=`${dateShort[3]}-${String(Number(dateShort[2])).padStart(2,'0')}-${String(Number(dateShort[1])).padStart(2,'0')}`;
+   const osDate=extractOsDate(text);if(osDate)patch.openedAt=osDate;
    const loc=text.match(/(?:LOCALIZA(?:C|Ç)(?:A|Ã)O|LOCAL)\s*[:\-]\s*(.+?)(?=\s+(?:ATENCIOSAMENTE|LISTA\s+DE\s+MATERIAL|MATERIAIS?|QUALQUER\s+D[ÚU]VIDA|OBSERVA(?:C|Ç)(?:A|Ã)O|$))/i);if(loc)patch.local=cleanExtracted(loc[1]);
    const description=extractDescription(text);if(description)patch.description=description;
    const svc=[['HIDRÁULICA',['ENCANADOR','HIDRAUL']],['ELÉTRICA',['ELETRIC','LAMPADA','LÂMPADA']],['PINTURA',['PINTOR','PINTURA']],['ALVENARIA',['PEDREIRO','ALVENARIA']],['CARPINTARIA',['CARPINTEIRO','MADEIRA']]].find(([,keys])=>(keys as string[]).some(k=>upper.includes(normalize(k))));if(svc)patch.serviceType=svc[0] as string;
@@ -53,8 +64,9 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
    const unidade=catalogs.unidades.find(x=>x.active&&upper.includes(normalize(x.name)));if(unidade){patch.unidade=unidade.name;if(!patch.local&&unidade.address)patch.local=unidade.address;if(!patch.secretaria&&unidade.parent)patch.secretaria=unidade.parent}
    const equipe=catalogs.equipes.find(x=>x.active&&upper.includes(normalize(x.name)));if(equipe){patch.team=equipe.name;patch.workforceOrigin=equipe.detail||f.workforceOrigin}
    await addPdfAttachment(file,'OFICIO');setF(x=>({...x,...patch}));
-   const missingAfterRead=['secretaria','unidade','serviceType','description'].filter(key=>!String((patch as any)[key]??(f as any)[key]??'').trim());
-   alert(missingAfterRead.length?`PDF lido. Alguns campos não foram identificados automaticamente: ${missingAfterRead.map(k=>({secretaria:'Secretaria',unidade:'Unidade / Órgão',serviceType:'Tipo de serviço',description:'Descrição do serviço'} as Record<string,string>)[k]).join(', ')}. Confira e complete somente esses campos antes de salvar.`:'PDF lido e campos principais preenchidos. Confira os dados antes de salvar a O.S.');
+   const missingAfterRead=['openedAt','secretaria','unidade','serviceType','description'].filter(key=>key==='openedAt'?!patch.openedAt:!String((patch as any)[key]??(f as any)[key]??'').trim());
+   const labels:Record<string,string>={openedAt:'Data da O.S.',secretaria:'Secretaria',unidade:'Unidade / Órgão',serviceType:'Tipo de serviço',description:'Descrição do serviço'};
+   alert(missingAfterRead.length?`PDF lido. Alguns campos não foram identificados automaticamente: ${missingAfterRead.map(k=>labels[k]).join(', ')}. Confira e complete somente esses campos antes de salvar.`:`PDF lido. Data da O.S.: ${new Date(`${patch.openedAt}T12:00:00`).toLocaleDateString('pt-BR')}. Confira os demais dados antes de salvar.`);
   }catch(err){alert(`Não foi possível ler automaticamente este PDF. O arquivo não foi usado para preencher os campos. ${err instanceof Error?err.message:''}`)}finally{setReadingPdf(false);if(osPdfRef.current)osPdfRef.current.value=''}
  };
  const attachMaterialPdf=async(file:File|null)=>{if(!file)return;try{if(await addPdfAttachment(file,'MATERIAL'))alert('Lista de materiais anexada à O.S.')}catch{alert('Não foi possível anexar a lista de materiais.')}finally{if(materialPdfRef.current)materialPdfRef.current.value=''}};
@@ -62,6 +74,7 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
   e.preventDefault();
   if(!Number.isInteger(f.number)||f.number<=0){alert('Informe o número da O.S.');return;}
   const missing:string[]=[];
+  if(!f.openedAt.trim())missing.push('Data da O.S.');
   if(!f.secretaria.trim())missing.push('Secretaria');
   if(!f.unidade.trim())missing.push('Unidade / Órgão');
   if(!f.serviceType.trim())missing.push('Tipo de serviço');
