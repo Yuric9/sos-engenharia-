@@ -69,4 +69,13 @@ export function loadCatalogs():Catalogs{
  }catch{}
  localStorage.setItem(KEY,JSON.stringify(seed));return seed;
 }
-export function saveCatalogs(v:Catalogs){localStorage.setItem(KEY,JSON.stringify(v))}
+
+export function saveCatalogs(v:Catalogs):boolean{
+ try{
+  localStorage.setItem(KEY,JSON.stringify(v));
+  return true;
+ }catch(error){
+  console.error('Não foi possível salvar os cadastros no armazenamento local.',error);
+  return false;
+ }
+}
