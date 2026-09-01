@@ -54,6 +54,7 @@ pub fn save_attachment(os_id:i64,attachment_id:&str,file_name:&str,mime_type:&st
     if let Some(parent)=target.parent(){fs::create_dir_all(parent).map_err(|e|e.to_string())?;}
     let temp=target.with_extension(format!("{}.tmp",ext));
     fs::write(&temp,&bytes).map_err(|e|e.to_string())?;
+    if target.exists(){fs::remove_file(&target).map_err(|e|e.to_string())?;}
     fs::rename(&temp,&target).map_err(|e|e.to_string())?;
     Ok(rel.to_string_lossy().replace('\\',"/"))
 }
@@ -161,10 +162,24 @@ pub fn replace_orders(order_jsons:&[String],user_id:Option<i64>)->std::result::R
 
 pub fn database_location()->String { db_path().to_string_lossy().to_string() }
 
+fn copy_dir_recursive(source:&Path,target:&Path)->std::io::Result<()>{
+    if !source.exists(){return Ok(())}
+    fs::create_dir_all(target)?;
+    for entry in fs::read_dir(source)?{
+        let entry=entry?; let src=entry.path(); let dst=target.join(entry.file_name());
+        if entry.file_type()?.is_dir(){copy_dir_recursive(&src,&dst)?}else{fs::copy(&src,&dst)?;}
+    }
+    Ok(())
+}
+
 fn create_backup(label:&str)->std::io::Result<String>{
-    let root=portable::data_root(); let source=db_path(); let backup_dir=root.join("backups"); fs::create_dir_all(&backup_dir)?;
-    let stamp=chrono::Local::now().format("%Y%m%d-%H%M%S").to_string(); let target=backup_dir.join(format!("sos-{}-{}.db",label,stamp));
-    fs::copy(source,&target)?; Ok(target.to_string_lossy().to_string())
+    let root=portable::data_root(); let backup_dir=root.join("backups"); fs::create_dir_all(&backup_dir)?;
+    let stamp=chrono::Local::now().format("%Y%m%d-%H%M%S").to_string(); let target=backup_dir.join(format!("sos-{}-{}",label,stamp));
+    fs::create_dir_all(&target)?;
+    fs::copy(db_path(),target.join("sos.db"))?;
+    copy_dir_recursive(&attachments_root(),&target.join("anexos"))?;
+    fs::write(target.join("LEIA-ME.txt"),"Backup completo do S.O.S. Contém o banco sos.db e a pasta anexos. Mantenha os dois juntos durante uma restauração.")?;
+    Ok(target.to_string_lossy().to_string())
 }
 pub fn backup_now()->std::io::Result<String>{create_backup("backup")}
 fn backup_daily()->std::io::Result<Option<String>>{
