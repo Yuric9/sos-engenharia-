@@ -64,9 +64,9 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
    const unidade=catalogs.unidades.find(x=>x.active&&upper.includes(normalize(x.name)));if(unidade){patch.unidade=unidade.name;if(!patch.local&&unidade.address)patch.local=unidade.address;if(!patch.secretaria&&unidade.parent)patch.secretaria=unidade.parent}
    const equipe=catalogs.equipes.find(x=>x.active&&upper.includes(normalize(x.name)));if(equipe){patch.team=equipe.name;patch.workforceOrigin=equipe.detail||f.workforceOrigin}
    await addPdfAttachment(file,'OFICIO');setF(x=>({...x,...patch}));
-   const missingAfterRead=['openedAt','secretaria','unidade','serviceType','description'].filter(key=>key==='openedAt'?!patch.openedAt:!String((patch as any)[key]??(f as any)[key]??'').trim());
-   const labels:Record<string,string>={openedAt:'Data da O.S.',secretaria:'Secretaria',unidade:'Unidade / Órgão',serviceType:'Tipo de serviço',description:'Descrição do serviço'};
-   alert(missingAfterRead.length?`PDF lido. Alguns campos não foram identificados automaticamente: ${missingAfterRead.map(k=>labels[k]).join(', ')}. Confira e complete somente esses campos antes de salvar.`:`PDF lido. Data da O.S.: ${new Date(`${patch.openedAt}T12:00:00`).toLocaleDateString('pt-BR')}. Confira os demais dados antes de salvar.`);
+   const missingAfterRead=['openedAt','secretaria','serviceType','description'].filter(key=>key==='openedAt'?!patch.openedAt:!String((patch as any)[key]??(f as any)[key]??'').trim());
+   const labels:Record<string,string>={openedAt:'Data da O.S.',secretaria:'Secretaria',serviceType:'Tipo de serviço',description:'Descrição do serviço'};
+   alert(missingAfterRead.length?`PDF lido. Alguns campos obrigatórios não foram identificados automaticamente: ${missingAfterRead.map(k=>labels[k]).join(', ')}. Unidade / Órgão é opcional. Confira e complete somente esses campos antes de salvar.`:`PDF lido. Data da O.S.: ${new Date(`${patch.openedAt}T12:00:00`).toLocaleDateString('pt-BR')}. Unidade / Órgão é opcional. Confira os demais dados antes de salvar.`);
   }catch(err){alert(`Não foi possível ler automaticamente este PDF. O arquivo não foi usado para preencher os campos. ${err instanceof Error?err.message:''}`)}finally{setReadingPdf(false);if(osPdfRef.current)osPdfRef.current.value=''}
  };
  const attachMaterialPdf=async(file:File|null)=>{if(!file)return;try{if(await addPdfAttachment(file,'MATERIAL'))alert('Lista de materiais anexada à O.S.')}catch{alert('Não foi possível anexar a lista de materiais.')}finally{if(materialPdfRef.current)materialPdfRef.current.value=''}};
@@ -76,7 +76,6 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
   const missing:string[]=[];
   if(!f.openedAt.trim())missing.push('Data da O.S.');
   if(!f.secretaria.trim())missing.push('Secretaria');
-  if(!f.unidade.trim())missing.push('Unidade / Órgão');
   if(!f.serviceType.trim())missing.push('Tipo de serviço');
   if(!f.description.trim())missing.push('Descrição do serviço');
   if(missing.length){alert(`Ainda falta preencher: ${missing.join(', ')}.`);return;}
@@ -87,8 +86,8 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
  <label><span>Número da O.S.</span><input style={inputStyle} type="number" min="1" step="1" value={f.number||''} onChange={e=>set('number',Number(e.target.value))} placeholder="Informe o número da O.S."/><button type="button" style={{marginTop:8}} onClick={()=>osPdfRef.current?.click()}><FileText size={15}/>{readingPdf?' Lendo PDF...':' Carregar PDF da O.S.'}</button><input ref={osPdfRef} type="file" hidden accept="application/pdf,.pdf" onChange={e=>importOsPdf(e.target.files?.[0]||null)}/>{lastOsPdf&&<small style={{display:'block',marginTop:6}}>PDF original: {lastOsPdf.name}</small>}</label>
  <label><span>Data</span><input style={inputStyle} type="date" value={f.openedAt} onChange={e=>set('openedAt',e.target.value)}/></label>
  <label><span>Secretaria</span><select style={inputStyle} value={f.secretaria} onChange={e=>{setF(x=>({...x,secretaria:e.target.value,unidade:'',local:''}))}}><option value="">Selecione</option>{active('secretarias').map(x=><option key={x.id}>{x.name}</option>)}</select></label>
- <label><span>Unidade / Órgão</span><select style={inputStyle} value={f.unidade} onChange={e=>{const unit=catalogs.unidades.find(x=>x.name===e.target.value&&(!f.secretaria||x.parent===f.secretaria));setF(x=>({...x,unidade:e.target.value,local:unit?.address||''}))}}><option value="">Selecione</option>{units.map(x=><option key={x.id}>{x.name}</option>)}</select></label>
- <label><span>Local / Setor</span><input style={inputStyle} value={f.local||''} onChange={e=>set('local',e.target.value)} placeholder="Endereço da unidade; complemente com sala/setor se necessário"/></label>
+ <label><span>Unidade / Órgão (opcional)</span><select style={inputStyle} value={f.unidade} onChange={e=>{const unit=catalogs.unidades.find(x=>x.name===e.target.value&&(!f.secretaria||x.parent===f.secretaria));setF(x=>({...x,unidade:e.target.value,local:unit?.address||x.local||''}))}}><option value="">Sede da Secretaria / não se aplica</option>{units.map(x=><option key={x.id}>{x.name}</option>)}</select></label>
+ <label><span>Local / Setor</span><input style={inputStyle} value={f.local||''} onChange={e=>set('local',e.target.value)} placeholder="Informe o local quando necessário"/></label>
  <label><span>Tipo de serviço</span><input style={inputStyle} value={f.serviceType} onChange={e=>set('serviceType',e.target.value)} placeholder="Elétrica, Hidráulica, Pintura..."/></label>
  <label><span>Equipe</span><select style={inputStyle} value={f.team} onChange={e=>{const team=catalogs.equipes.find(x=>x.name===e.target.value);setF(x=>({...x,team:e.target.value,workforceOrigin:team?.detail||x.workforceOrigin}))}}>{active('equipes').map(x=><option key={x.id}>{x.name}</option>)}</select></label>
  <label><span>Origem da mão de obra</span><input style={inputStyle} value={f.workforceOrigin} onChange={e=>set('workforceOrigin',e.target.value)}/></label>
