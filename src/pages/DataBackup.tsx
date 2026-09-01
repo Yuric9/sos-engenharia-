@@ -2,21 +2,18 @@ import { ChangeEvent, useRef } from 'react';
 import { DatabaseBackup, Download, HardDrive, Upload } from 'lucide-react';
 import { WorkOrder } from '../types';
 import { Catalogs } from '../lib/catalogs';
-import { AppUser } from '../lib/auth';
 
 export interface SosBackupFile{
   format:'SOS_BACKUP';
-  version:1;
+  version:2;
   exportedAt:string;
   orders:WorkOrder[];
   catalogs:Catalogs;
-  users:AppUser[];
 }
 
-export default function DataBackup({orders,catalogs,users,desktop,databaseLocation,onImport,onNativeBackup}:{
+export default function DataBackup({orders,catalogs,desktop,databaseLocation,onImport,onNativeBackup}:{
   orders:WorkOrder[];
   catalogs:Catalogs;
-  users:AppUser[];
   desktop:boolean;
   databaseLocation:string|null;
   onImport:(backup:SosBackupFile)=>Promise<boolean>;
@@ -25,7 +22,7 @@ export default function DataBackup({orders,catalogs,users,desktop,databaseLocati
   const inputRef=useRef<HTMLInputElement>(null);
 
   const exportData=()=>{
-    const payload:SosBackupFile={format:'SOS_BACKUP',version:1,exportedAt:new Date().toISOString(),orders,catalogs,users};
+    const payload:SosBackupFile={format:'SOS_BACKUP',version:2,exportedAt:new Date().toISOString(),orders,catalogs};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
@@ -41,12 +38,12 @@ export default function DataBackup({orders,catalogs,users,desktop,databaseLocati
     if(!file)return;
     try{
       const parsed=JSON.parse(await file.text()) as SosBackupFile;
-      if(parsed.format!=='SOS_BACKUP'||parsed.version!==1||!Array.isArray(parsed.orders)||!parsed.catalogs||!Array.isArray(parsed.users)){
-        alert('Este arquivo não é um backup válido do S.O.S.');
+      if(parsed.format!=='SOS_BACKUP'||parsed.version!==2||!Array.isArray(parsed.orders)||!parsed.catalogs){
+        alert('Este arquivo não é um backup válido ou seguro do S.O.S. versão atual.');
         return;
       }
-      if(!confirm(`Importar ${parsed.orders.length} O.S. deste backup? Os dados atuais serão substituídos.`))return;
-      if(await onImport(parsed))alert('Backup importado com sucesso.');
+      if(!confirm(`Importar ${parsed.orders.length} O.S. deste backup? O.S. e cadastros atuais serão substituídos. Usuários e senhas NÃO serão alterados.`))return;
+      if(await onImport(parsed))alert('Backup importado com sucesso. Usuários e senhas locais foram preservados.');
     }catch{
       alert('Não foi possível ler o arquivo de backup.');
     }
@@ -61,22 +58,9 @@ export default function DataBackup({orders,catalogs,users,desktop,databaseLocati
   return <>
     <header className="topbar"><div><h1>Backup / Migração</h1><p>Transferência segura dos dados entre a versão web e o S.O.S no HD externo.</p></div></header>
     <section className="content-grid">
-      <article className="panel">
-        <div className="panel-title"><h3>Exportar dados</h3><Download size={19}/></div>
-        <p>Gera um arquivo com O.S., cadastros e usuários atuais. Use este arquivo para levar os dados da versão web para o HD externo.</p>
-        <button className="primary" onClick={exportData}><Download size={17}/>Exportar backup JSON</button>
-      </article>
-      <article className="panel">
-        <div className="panel-title"><h3>Importar dados</h3><Upload size={19}/></div>
-        <p>Restaura um backup do S.O.S. A importação substitui a base atual após confirmação.</p>
-        <button onClick={()=>inputRef.current?.click()}><Upload size={17}/>Selecionar backup</button>
-        <input ref={inputRef} hidden type="file" accept="application/json,.json" onChange={importFile}/>
-      </article>
-      <article className="panel wide">
-        <div className="panel-title"><h3>{desktop?'Banco do HD externo':'Armazenamento atual'}</h3><HardDrive size={19}/></div>
-        <p><b>{desktop?(databaseLocation||'SQLite portátil detectado'):'Versão web — armazenamento do navegador'}</b></p>
-        {desktop?<><p className="hint">O banco principal desta versão é o arquivo sos.db no HD. Não desconecte o HD enquanto o programa estiver aberto.</p><button onClick={nativeBackup}><DatabaseBackup size={17}/>Criar backup do SQLite agora</button></>:<p className="hint">Exporte o backup antes de começar a usar a versão portátil no HD externo.</p>}
-      </article>
+      <article className="panel"><div className="panel-title"><h3>Exportar dados</h3><Download size={19}/></div><p>Gera um arquivo com O.S. e cadastros. Por segurança, usuários, hashes e senhas não são incluídos.</p><button className="primary" onClick={exportData}><Download size={17}/>Exportar backup JSON</button></article>
+      <article className="panel"><div className="panel-title"><h3>Importar dados</h3><Upload size={19}/></div><p>Restaura O.S. e cadastros. As credenciais existentes neste equipamento são preservadas.</p><button onClick={()=>inputRef.current?.click()}><Upload size={17}/>Selecionar backup</button><input ref={inputRef} hidden type="file" accept="application/json,.json" onChange={importFile}/></article>
+      <article className="panel wide"><div className="panel-title"><h3>{desktop?'Banco do HD externo':'Armazenamento atual'}</h3><HardDrive size={19}/></div><p><b>{desktop?(databaseLocation||'SQLite portátil detectado'):'Versão web — armazenamento do navegador'}</b></p>{desktop?<><p className="hint">O banco principal desta versão é o arquivo sos.db no HD. Não desconecte o HD enquanto o programa estiver aberto. O sistema também cria backup automático diário ao iniciar.</p><button onClick={nativeBackup}><DatabaseBackup size={17}/>Criar backup do SQLite agora</button></>:<p className="hint">Exporte o backup antes de começar a usar a versão portátil no HD externo.</p>}</article>
     </section>
   </>;
 }
