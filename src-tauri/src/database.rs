@@ -1,9 +1,13 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rusqlite::{params, Connection, OptionalExtension, Result, Transaction};
 use serde_json::Value;
-use std::fs;
+use std::{fs, path::{Component, Path, PathBuf}};
 use crate::portable;
 
-fn db_path() -> std::path::PathBuf { portable::data_root().join("data").join("sos.db") }
+const MAX_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
+
+fn db_path() -> PathBuf { portable::data_root().join("data").join("sos.db") }
+fn attachments_root() -> PathBuf { portable::data_root().join("anexos") }
 fn open()->Result<Connection>{ let conn=Connection::open(db_path())?; conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;")?; Ok(conn) }
 
 fn validate_order(raw:&str)->std::result::Result<(i64,i64),String>{
@@ -24,18 +28,90 @@ fn audit(tx:&Transaction<'_>,user_id:Option<i64>,action:&str,entity_id:Option<i6
     Ok(())
 }
 
+fn extension_allowed(ext:&str)->bool{matches!(ext,"jpg"|"jpeg"|"png"|"webp"|"gif"|"pdf"|"doc"|"docx")}
+fn mime_allowed(mime:&str)->bool{matches!(mime,"image/jpeg"|"image/png"|"image/webp"|"image/gif"|"application/pdf"|"application/msword"|"application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+fn safe_attachment_id(id:&str)->bool{!id.is_empty()&&id.len()<=80&&id.chars().all(|c|c.is_ascii_alphanumeric()||c=='-'||c=='_')}
+fn extension_from_name(name:&str)->std::result::Result<String,String>{
+    let ext=Path::new(name).extension().and_then(|x|x.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !extension_allowed(&ext){return Err("Tipo de arquivo não permitido".into())} Ok(ext)
+}
+fn safe_stored_path(stored:&str)->std::result::Result<PathBuf,String>{
+    let rel=Path::new(stored);
+    if rel.is_absolute()||rel.components().any(|c|!matches!(c,Component::Normal(_))){return Err("Caminho de anexo inválido".into())}
+    Ok(attachments_root().join(rel))
+}
+
+pub fn save_attachment(os_id:i64,attachment_id:&str,file_name:&str,mime_type:&str,data_base64:&str)->std::result::Result<String,String>{
+    if os_id<=0{return Err("O.S. inválida para anexo".into())}
+    if !safe_attachment_id(attachment_id){return Err("Identificador de anexo inválido".into())}
+    if !mime_allowed(mime_type){return Err("Tipo MIME não permitido".into())}
+    let ext=extension_from_name(file_name)?;
+    let bytes=STANDARD.decode(data_base64).map_err(|_|"Conteúdo do anexo inválido".to_string())?;
+    if bytes.is_empty(){return Err("Anexo vazio".into())}
+    if bytes.len()>MAX_ATTACHMENT_BYTES{return Err("Anexo excede o limite de 10 MB".into())}
+    let rel=PathBuf::from(format!("os-{}",os_id)).join(format!("{}.{}",attachment_id,ext));
+    let target=attachments_root().join(&rel);
+    if let Some(parent)=target.parent(){fs::create_dir_all(parent).map_err(|e|e.to_string())?;}
+    let temp=target.with_extension(format!("{}.tmp",ext));
+    fs::write(&temp,&bytes).map_err(|e|e.to_string())?;
+    fs::rename(&temp,&target).map_err(|e|e.to_string())?;
+    Ok(rel.to_string_lossy().replace('\\',"/"))
+}
+
+pub fn read_attachment(stored_path:&str,mime_type:&str)->std::result::Result<String,String>{
+    if !mime_allowed(mime_type){return Err("Tipo MIME não permitido".into())}
+    let path=safe_stored_path(stored_path)?;
+    let bytes=fs::read(path).map_err(|e|e.to_string())?;
+    if bytes.len()>MAX_ATTACHMENT_BYTES{return Err("Anexo excede o limite permitido".into())}
+    Ok(format!("data:{};base64,{}",mime_type,STANDARD.encode(bytes)))
+}
+
+pub fn delete_attachment(stored_path:&str)->std::result::Result<(),String>{
+    let path=safe_stored_path(stored_path)?;
+    if path.exists(){fs::remove_file(path).map_err(|e|e.to_string())?;} Ok(())
+}
+
+fn migrate_legacy_attachment_files(order:&mut Value)->std::result::Result<bool,String>{
+    let os_id=order.get("id").and_then(Value::as_i64).ok_or("O.S. histórica sem id")?;
+    let Some(items)=order.get_mut("attachments").and_then(Value::as_array_mut) else{return Ok(false)};
+    let mut changed=false;
+    for item in items.iter_mut(){
+        if item.get("storedPath").and_then(Value::as_str).is_some(){continue}
+        let Some(data_url)=item.get("dataUrl").and_then(Value::as_str).map(str::to_string) else{continue};
+        let Some((head,data))=data_url.split_once(',') else{continue};
+        if !head.ends_with(";base64"){continue}
+        let mime=head.strip_prefix("data:").and_then(|x|x.strip_suffix(";base64")).unwrap_or("");
+        let id=item.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+        let name=item.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+        if let Ok(path)=save_attachment(os_id,&id,&name,mime,data){
+            if let Some(obj)=item.as_object_mut(){obj.insert("storedPath".into(),Value::String(path));obj.remove("dataUrl");}
+            changed=true;
+        }
+    }
+    Ok(changed)
+}
+
 fn migrate_legacy_orders(conn:&mut Connection)->Result<()> {
     let count:i64=conn.query_row("SELECT COUNT(*) FROM work_order_records",[],|r|r.get(0))?;
-    if count>0{return Ok(())}
-    let legacy:Option<String>=conn.query_row("SELECT value_json FROM app_snapshots WHERE key='orders'",[],|r|r.get(0)).optional()?;
-    let Some(raw)=legacy else{return Ok(())};
-    let Ok(items)=serde_json::from_str::<Vec<Value>>(&raw) else{return Ok(())};
-    let tx=conn.transaction()?;
-    for item in items{
-        let json=item.to_string();
-        if let Ok((id,number))=validate_order(&json){tx.execute("INSERT OR REPLACE INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP)",params![id,number,json])?;}
+    if count==0{
+        let legacy:Option<String>=conn.query_row("SELECT value_json FROM app_snapshots WHERE key='orders'",[],|r|r.get(0)).optional()?;
+        if let Some(raw)=legacy{
+            if let Ok(items)=serde_json::from_str::<Vec<Value>>(&raw){
+                let tx=conn.transaction()?;
+                for item in items{
+                    let json=item.to_string();
+                    if let Ok((id,number))=validate_order(&json){tx.execute("INSERT OR REPLACE INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP)",params![id,number,json])?;}
+                }
+                tx.commit()?;
+            }
+        }
     }
-    tx.commit()?;
+    let mut stmt=conn.prepare("SELECT id,order_json FROM work_order_records")?;
+    let rows=stmt.query_map([],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?)))?;
+    let mut pending=Vec::new();
+    for row in rows{let (id,raw)=row?;if let Ok(mut value)=serde_json::from_str::<Value>(&raw){if migrate_legacy_attachment_files(&mut value).unwrap_or(false){pending.push((id,value.to_string()));}}}
+    drop(stmt);
+    for (id,json) in pending{conn.execute("UPDATE work_order_records SET order_json=?1,updated_at=CURRENT_TIMESTAMP WHERE id=?2",params![json,id])?;}
     Ok(())
 }
 
@@ -71,7 +147,8 @@ pub fn delete_order(id:i64,user_id:Option<i64>)->Result<()> {
     let mut conn=open()?; let tx=conn.transaction()?;
     let before:Option<String>=tx.query_row("SELECT order_json FROM work_order_records WHERE id=?1",params![id],|r|r.get(0)).optional()?;
     tx.execute("DELETE FROM work_order_records WHERE id=?1",params![id])?;
-    audit(&tx,user_id,"DELETE",Some(id),before.as_deref(),None)?; tx.commit()?; Ok(())
+    audit(&tx,user_id,"DELETE",Some(id),before.as_deref(),None)?; tx.commit()?;
+    let dir=attachments_root().join(format!("os-{}",id)); if dir.exists(){let _=fs::remove_dir_all(dir);} Ok(())
 }
 
 pub fn replace_orders(order_jsons:&[String],user_id:Option<i64>)->std::result::Result<(),String>{
