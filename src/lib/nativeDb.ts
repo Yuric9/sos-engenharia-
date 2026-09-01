@@ -1,5 +1,6 @@
 export const SNAPSHOT_CATALOGS='catalogs';
 export const SNAPSHOT_USERS='users';
+export const SNAPSHOT_WORKS='works';
 
 export function isDesktopMode():boolean{
   return typeof window!=='undefined' && '__TAURI_INTERNALS__' in window;
@@ -40,7 +41,7 @@ export async function replaceDesktopOrders<T>(orders:T[],userId?:number):Promise
   try{await invoke<void>('replace_orders',{orderJsons:orders.map(x=>JSON.stringify(x)),userId:userId??null});return true}catch(error){console.error('Falha ao importar O.S. no SQLite.',error);return false}
 }
 
-export async function saveDesktopAttachment(osId:number,attachmentId:string,fileName:string,mimeType:string,dataBase64:string):Promise<string|null>{
+export async function saveDesktopAttachment<T>(osId:number,attachmentId:string,fileName:string,mimeType:string,dataBase64:string):Promise<string|null>{
   if(!isDesktopMode())return null;
   try{return await invoke<string>('save_attachment',{osId,attachmentId,fileName,mimeType,dataBase64})}catch(error){console.error('Falha ao salvar anexo no HD externo.',error);return null}
 }
