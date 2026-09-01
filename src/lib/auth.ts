@@ -1,9 +1,11 @@
 export type UserRole='ADMIN'|'OPERADOR';
+export type UserScope='EXECUTIVO'|'SAUDE'|'EDUCACAO'|'GABINETE';
 export interface AppUser {
   id:number;
   name:string;
   login:string;
   role:UserRole;
+  scope?:UserScope;
   active:boolean;
   passwordHash?:string;
   passwordSalt?:string;
@@ -40,7 +42,7 @@ export function loadUsers():AppUser[]{
 
 export function saveUsers(v:AppUser[]):boolean{
   try{
-    const clean=v.map(({id,name,login,role,active,passwordHash,passwordSalt,failedAttempts,lockedUntil})=>({id,name,login,role,active,passwordHash,passwordSalt,failedAttempts:failedAttempts||0,lockedUntil:lockedUntil||null}));
+    const clean=v.map(({id,name,login,role,scope,active,passwordHash,passwordSalt,failedAttempts,lockedUntil})=>({id,name,login,role,scope,active,passwordHash,passwordSalt,failedAttempts:failedAttempts||0,lockedUntil:lockedUntil||null}));
     localStorage.setItem(USERS,JSON.stringify(clean));
     return true;
   }catch(error){console.error('Não foi possível salvar os usuários.',error);return false}
