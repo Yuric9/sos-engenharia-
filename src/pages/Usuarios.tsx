@@ -30,7 +30,7 @@ export default function Usuarios({users,onChange}:{users:AppUser[];onChange:(u:A
   try{
    if(editing){
     if(editing.active&&editing.role==='ADMIN'&&role!=='ADMIN'&&activeAdminCount<=1){setError('Não é possível remover o perfil do último Admin ativo.');return}
-    let next={...editing,name:cleanName,login:cleanLogin,role,scope:role==='OPERADOR'?scope:undefined};
+    let next:AppUser={...editing,name:cleanName,login:cleanLogin,role,scope:role==='OPERADOR'?scope:undefined};
     if(password)next=await applyPassword(next,password);
     onChange(users.map(x=>x.id===editing.id?next:x));
    }else{
