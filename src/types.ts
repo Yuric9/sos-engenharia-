@@ -1,6 +1,6 @@
 export type StatusOS='ABERTA'|'EM_ANDAMENTO'|'PARALISADA'|'AGUARDANDO_MATERIAL'|'ATENDIDA'|'CONCLUIDA'|'CANCELADA';
 export type Priority='BAIXA'|'MEDIA'|'ALTA'|'URGENTE';
-export type AttachmentCategory='ANTES'|'DURANTE'|'FINAL'|'OFICIO'|'COMPROVANTE'|'PRINT'|'OUTRO';
+export type AttachmentCategory='ANTES'|'DURANTE'|'FINAL'|'OFICIO'|'MATERIAL'|'COMPROVANTE'|'PRINT'|'OUTRO';
 export interface Attachment { id:string; name:string; type:string; category:AttachmentCategory; dataUrl?:string; storedPath?:string; sizeBytes?:number; createdAt:string; }
 export interface WorkOrder {
  id:number; number:number; openedAt:string; secretaria:string; unidade:string; local?:string;
