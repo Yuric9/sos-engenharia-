@@ -5,8 +5,20 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/package-source.yml'
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'docs/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
+      - 'index.html'
+      - 'README.md'
+      - '.gitignore'
       - 'AUDITORIA-OUTRA-IA.md'
+      - '.github/workflows/build-portable-windows.yml'
+      - '.github/workflows/package-source.yml'
 
 jobs:
   package-source:
