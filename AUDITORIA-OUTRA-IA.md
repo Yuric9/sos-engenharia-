@@ -1,5 +1,34 @@
 # S.O.S — Pacote para Auditoria Externa por IA
 
+## PRIORIDADE MÁXIMA: LOGOS E ÍCONES
+Antes de qualquer outra melhoria visual, confira e, se possível, CORRIJA diretamente a identidade visual do aplicativo.
+
+Arquivos relacionados que acompanham este pacote:
+- `src/brand.ts`
+- `src/brandIcon.ts`
+- `src/brand-fix.css`
+- `public/prefeitura-trindade.png`
+- `public/prefeitura-trindade-exata.png`
+- `public/prefeitura-trindade-final.png`
+- `src-tauri/icons/icon.ico`
+- `src-tauri/build.rs`
+- `src-tauri/tauri.conf.json`
+
+A identidade aprovada é a marca SOS criada para o sistema. Verifique e corrija, se necessário:
+1. logo da tela inicial / criação do primeiro ADMIN;
+2. logo da tela de login;
+3. logo/cabeçalho dentro do sistema;
+4. identidade no menu lateral;
+5. ícone do `.exe` no Windows Explorer;
+6. ícone da janela do aplicativo;
+7. ícone na barra de tarefas;
+8. ícone de atalhos do Windows;
+9. proporção e tamanho em cada uso, sem esticar, cortar ou achatar;
+10. funcionamento da logo mesmo sem internet e sem depender de URL externa;
+11. inclusão correta dos assets na build Tauri de produção.
+
+Se encontrar arquivo de logo quebrado, placeholder, asset inválido ou configuração de ícone incorreta, corrija no projeto e explique exatamente o que foi alterado. Não substitua a identidade aprovada por um ícone genérico.
+
 ## Objetivo
 Analise este projeto existente sem reconstruí-lo do zero. O objetivo é encontrar bugs, riscos de segurança, falhas de persistência, botões sem função, problemas de UX e inconsistências de regras de negócio. Preserve o que já funciona.
 
@@ -8,7 +37,6 @@ S.O.S — Sistema de Ordens de Manutenção / Departamento de Engenharia.
 Stack atual: React + Vite + TypeScript no frontend; Tauri v2 + Rust + SQLite na versão desktop portátil para Windows.
 
 ## Regras importantes que NÃO devem ser alteradas sem apontar claramente o motivo
-
 1. O número da O.S. é manual.
 2. Possível duplicidade de número/ano/origem gera aviso, mas não bloqueia o salvamento.
 3. Identificação de importação histórica considera número + ano + origem (Executivo, Saúde, Educação ou outra origem), pois o mesmo número pode existir em bases diferentes.
@@ -142,12 +170,7 @@ Teste/inspecione:
 - Verifique dados opcionais vazios e datas inválidas.
 
 ## Como entregar o relatório
-Classifique cada achado como:
-- CRÍTICO
-- ALTO
-- MÉDIO
-- BAIXO
-- MELHORIA
+Classifique cada achado como: CRÍTICO, ALTO, MÉDIO, BAIXO ou MELHORIA.
 
 Para cada achado informe:
 1. arquivo e trecho/função;
@@ -163,6 +186,7 @@ Depois faça uma lista separada de:
 - problemas de persistência;
 - problemas de importação;
 - problemas específicos do módulo Obras;
+- problemas de logo/ícone e correções efetuadas;
 - testes que não puderam ser executados no seu ambiente.
 
 Não invente resultados de testes que você não executou. Não altere silenciosamente regras do sistema.
