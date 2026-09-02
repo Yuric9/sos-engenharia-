@@ -38,7 +38,7 @@ function headerScore(row:unknown[]){
  return score+(hasNumber?3:0)+(hasDate?3:0);
 }
 function rowsFromSheet(ws:XLSX.WorkSheet){
- const matrix=XLSX.utils.sheet_to_json<unknown[]>(ws,{header:1,defval:'',raw:false});
+ const matrix=XLSX.utils.sheet_to_json<unknown[]>(ws,{header:1,defval:'',raw:true});
  if(!matrix.length)return {rows:[] as Record<string,unknown>[],headerRow:0};
  let best=0,bestScore=-1;
  for(let i=0;i<Math.min(matrix.length,40);i++){const s=headerScore(matrix[i]||[]);if(s>bestScore){bestScore=s;best=i}}
@@ -59,11 +59,22 @@ function pick(row:Record<string,unknown>,names:string[]){
 }
 function parseNumber(v:unknown){const s=text(v);const m=s.match(/(?:^|\D)(\d{1,6})(?:\s*[\/.-]\s*20\d{2})?(?:\D|$)/);return m?Number(m[1]):0}
 function parseDate(v:unknown){
- if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.toISOString().slice(0,10);
+ const iso=(y:number,m:number,d:number)=>{
+  const test=new Date(y,m-1,d);
+  if(test.getFullYear()!==y||test.getMonth()!==m-1||test.getDate()!==d)return '';
+  return `${String(y).padStart(4,'0')}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+ };
+ if(v instanceof Date&&!Number.isNaN(v.getTime()))return iso(v.getFullYear(),v.getMonth()+1,v.getDate());
+ if(typeof v==='number'&&Number.isFinite(v)){
+  const decoded=XLSX.SSF.parse_date_code(v);
+  if(decoded)return iso(decoded.y,decoded.m,decoded.d);
+ }
  const s=text(v);if(!s)return '';
- let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);if(m){const y=m[3].length===2?`20${m[3]}`:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}
- m=s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
- const d=new Date(s);return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10);
+ let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+ if(m){const y=Number(m[3].length===2?`20${m[3]}`:m[3]);return iso(y,Number(m[2]),Number(m[1]))}
+ m=s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+ if(m)return iso(Number(m[1]),Number(m[2]),Number(m[3]));
+ return '';
 }
 function parseStatus(v:unknown):StatusOS{const s=norm(v);if(s.includes('cancel'))return'CANCELADA';if(s.includes('conclu')||s.includes('finaliz'))return'CONCLUIDA';if(s.includes('atendid'))return'ATENDIDA';if(s.includes('aguard')&&s.includes('material'))return'AGUARDANDO_MATERIAL';if(s.includes('paralis'))return'PARALISADA';if(s.includes('andamento')||s.includes('execu'))return'EM_ANDAMENTO';return'ABERTA'}
 function parsePriority(v:unknown):Priority{const s=norm(v);if(s.includes('urgent'))return'URGENTE';if(s.includes('alta'))return'ALTA';if(s.includes('baixa'))return'BAIXA';return'MEDIA'}
@@ -122,7 +133,7 @@ export default function ImportSpreadsheet({orders,onImport}:Props){
  <h3 style={{marginTop:22}}>2. Selecione e analise a planilha</h3><button className="primary" onClick={()=>fileRef.current?.click()} disabled={busy||!effectiveOrigin}><Upload size={17}/>{busy?'Processando...':'Selecionar planilha'}</button><input ref={fileRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={e=>{const f=e.target.files?.[0];if(f)load(f)}}/>{fileName&&<p><FileSpreadsheet size={16} style={{verticalAlign:'middle'}}/> {fileName}</p>}{headerInfo&&<p className="hint">Cabeçalho detectado automaticamente: {headerInfo}</p>}</section>
  {fileLoaded&&parsed.length===0&&<section className="table-card" style={{marginTop:14,padding:22}}><div style={{display:'flex',gap:12,alignItems:'flex-start'}}><AlertTriangle size={24}/><div><h3 style={{margin:'0 0 6px'}}>Nenhuma O.S. reconhecida</h3><p style={{margin:'0 0 6px'}}>A planilha foi lida e o cabeçalho foi procurado automaticamente, mas ainda não foi possível identificar número e data das O.S. Nenhum dado foi salvo.</p><p className="hint" style={{margin:0}}>Linhas ignoradas: {invalid}. {headerInfo}</p></div></div></section>}
  {parsed.length>0&&<><section className="cards" style={{marginTop:14}}><article className="metric"><div><span>Registros reconhecidos</span><strong>{parsed.length}</strong></div><CheckCircle2 size={22}/></article><article className="metric"><div><span>Ano atual ({currentYear})</span><strong>{parsed.length-past}</strong></div><CheckCircle2 size={22}/></article><article className="metric"><div><span>Arquivados automaticamente</span><strong>{past}</strong></div><FileSpreadsheet size={22}/></article><article className="metric"><div><span>Possíveis duplicidades</span><strong>{duplicates}</strong></div><AlertTriangle size={22}/></article><article className="metric"><div><span>Linhas ignoradas</span><strong>{invalid}</strong></div><AlertTriangle size={22}/></article></section>
- <section className="table-card"><div className="table-toolbar"><div><h2>3. Confira antes de importar</h2><p>Nada foi salvo ainda. Registros anteriores a {currentYear} entrarão em Arquivadas e não participarão das métricas operacionais.</p></div></div><div className="filters"><label style={{display:'flex',alignItems:'center',gap:8}}><input type="checkbox" checked={includeDuplicates} onChange={e=>setIncludeDuplicates(e.target.checked)}/> Incluir também as possíveis duplicidades</label></div><div className="table-scroll"><table><thead><tr><th>O.S.</th><th>Ano</th><th>Origem</th><th>Unidade</th><th>Serviço</th><th>Destino</th><th>Análise</th></tr></thead><tbody>{parsed.slice(0,300).map((x,i)=><tr key={`${x.sheet}-${x.row}-${i}`}><td><b>#{x.order.number}</b></td><td>{yearOf(x.order.openedAt)}</td><td>{x.order.importOrigin}</td><td>{x.order.unidade||'—'}</td><td>{x.order.serviceType}</td><td>{x.order.archived?'Arquivadas':'Operacional'}</td><td>{x.duplicate?<span className="overdue">Possível duplicidade</span>:x.warnings.length?x.warnings.join('; '):'OK'}</td></tr>)}</tbody></table></div>{parsed.length>300&&<p className="hint" style={{padding:'0 20px 15px'}}>Prévia limitada às primeiras 300 linhas. Todos os {parsed.length} registros reconhecidos serão considerados na importação.</p>}</section>
+ <section className="table-card"><div className="table-toolbar"><div><h2>3. Confira antes de importar</h2><p>Nada foi salvo ainda. Registros anteriores a {currentYear} entrarão em Arquivadas e não participarão das métricas operacionais.</p></div></div><div className="filters"><label style={{display:'flex',alignItems:'center',gap:8}}><input type="checkbox" checked={includeDuplicates} onChange={e=>setIncludeDuplicates(e.target.checked)}/> Incluir também as possíveis duplicidades</label></div><div className="table-scroll"><table><thead><tr><th>O.S.</th><th>Data</th><th>Ano</th><th>Origem</th><th>Unidade</th><th>Serviço</th><th>Destino</th><th>Análise</th></tr></thead><tbody>{parsed.slice(0,300).map((x,i)=><tr key={`${x.sheet}-${x.row}-${i}`}><td><b>#{x.order.number}</b></td><td>{new Date(x.order.openedAt+'T12:00:00').toLocaleDateString('pt-BR')}</td><td>{yearOf(x.order.openedAt)}</td><td>{x.order.importOrigin}</td><td>{x.order.unidade||'—'}</td><td>{x.order.serviceType}</td><td>{x.order.archived?'Arquivadas':'Operacional'}</td><td>{x.duplicate?<span className="overdue">Possível duplicidade</span>:x.warnings.length?x.warnings.join('; '):'OK'}</td></tr>)}</tbody></table></div>{parsed.length>300&&<p className="hint" style={{padding:'0 20px 15px'}}>Prévia limitada às primeiras 300 linhas. Todos os {parsed.length} registros reconhecidos serão considerados na importação.</p>}</section>
  <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}><button className="primary" disabled={busy||ready.length===0} onClick={confirmImport}><Upload size={17}/>Importar e salvar {ready.length} O.S.</button></div></>}
  </>;
 }
