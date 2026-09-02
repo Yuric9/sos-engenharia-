@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "audit": "node scripts/audit-ui.mjs",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run audit && npm run typecheck && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -15,7 +16,7 @@
     "lucide-react": "^0.468.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^18.3.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
