@@ -1,1 +1,47 @@
 .municipal-header{height:76px;display:grid;grid-template-columns:1fr auto;gap:18px;padding:0 28px}.department-title{margin-left:0;min-width:0}.department-title b{font-size:17px}.department-title span{white-space:nowrap}.user-chip{min-width:150px}.app-shell{min-height:calc(100vh - 76px)}.sidebar{height:calc(100vh - 76px);padding-top:16px}.side-heading{padding-top:0}.login-institution img{display:block;width:auto!important;height:88px!important;max-width:270px!important;aspect-ratio:auto!important;object-fit:contain!important}.tabs{display:none!important}@media(max-width:1100px){.municipal-header{grid-template-columns:1fr auto;gap:12px}.department-title span{white-space:normal}}@media(max-width:760px){.municipal-header{height:auto;min-height:72px;grid-template-columns:1fr;padding:10px 14px}.app-shell{min-height:0}.sidebar{height:auto}.login-institution img{height:68px!important;max-width:220px!important}}
+
+/* ==== Correções de layout (auditoria) ==== */
+
+/* 1. Botões sem classe (upload de PDF, seleção de backup) ficavam sem estilo */
+.panel > button,
+label > button,
+.upload-actions button{
+  border:1px solid #cddbd1;background:#fff;border-radius:9px;padding:10px 14px;
+  font:inherit;font-weight:650;display:inline-flex;align-items:center;gap:8px;
+  cursor:pointer;color:var(--green-900);margin-top:10px;line-height:1.2;
+}
+.panel > button:hover,
+label > button:hover{background:var(--green-100)}
+
+/* 2. Cards de métrica: rótulos de 2 linhas desalinhavam os números */
+.metric{align-items:flex-start;gap:12px}
+.metric > div{display:flex;flex-direction:column;height:100%;min-width:0}
+.metric span{line-height:1.25}
+.metric strong{margin-top:auto}
+.metric svg{flex:0 0 auto;opacity:.65}
+
+/* 3. Tabelas: evitar corte da última coluna e texto vazando entre colunas */
+.table-card{overflow:visible}
+.table-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-bottom-left-radius:14px;border-bottom-right-radius:14px}
+.table-scroll table{min-width:960px}
+td .sub{display:block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td .sub.clamp{display:-webkit-box;white-space:normal;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:260px}
+
+/* 4. Login: contraste correto sobre a faixa diagonal escura */
+.login-screen::before{pointer-events:none;z-index:0}
+.login-card{position:relative;z-index:1;background:rgba(255,255,255,.98);box-shadow:0 22px 60px rgba(0,0,0,.2)}
+.login-institution{position:relative;z-index:1}
+.login-institution h1,.login-institution p{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+.login-institution img{filter:drop-shadow(0 4px 12px rgba(0,0,0,.18))}
+
+/* 5. Responsividade adicional para tabelas e toolbar */
+@media(max-width:900px){
+ .table-toolbar{align-items:flex-start;flex-direction:column}
+ .table-toolbar .search{width:100%;max-width:none}
+ .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+ .cards{grid-template-columns:1fr}
+ .metric{min-height:108px}
+ .table-scroll table{min-width:820px}
+}
