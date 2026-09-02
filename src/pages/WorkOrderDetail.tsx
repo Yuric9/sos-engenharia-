@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Pencil, Archive, Trash2, Printer, Share2, Plus, Camera, FileText, Clock3, Package, Users, MessageSquareText, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Pencil, Archive, Trash2, Printer, Share2, Plus, Camera, FileText, Clock3, Package, Users, MessageSquareText, ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Attachment, WorkOrder } from '../types';
 import { deleteDesktopAttachment, isDesktopMode, readDesktopAttachment, saveDesktopAttachment } from '../lib/nativeDb';
 
 const DESKTOP_MAX_BYTES=10*1024*1024;
 const WEB_MAX_BYTES=900000;
 const ALLOWED_MIME=new Set(['image/jpeg','image/png','image/webp','image/gif','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+
+type ViewerState={attachment:Attachment;url:string;imageIndex?:number}|null;
 
 function fileToBase64(file:File):Promise<string>{
  return new Promise((resolve,reject)=>{
@@ -27,10 +29,17 @@ function fileToDataUrl(file:File):Promise<string>{
  });
 }
 
+const fileKind=(a:Attachment)=>a.type==='application/pdf'?'PDF':a.type.includes('word')?'WORD':a.type.startsWith('image/')?'IMAGEM':'ARQUIVO';
+const fileSize=(a:Attachment)=>a.sizeBytes?`${(a.sizeBytes/1024).toFixed(a.sizeBytes>1024*1024?1:0)} KB`:'Tamanho não informado';
+
 export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canDelete}:{os:WorkOrder;onBack:()=>void;onEdit:()=>void;onChange:(os:WorkOrder)=>void;onDelete:()=>void;canDelete:boolean}){
  const fileRef=useRef<HTMLInputElement>(null);
  const desktop=isDesktopMode();
  const [previews,setPreviews]=useState<Record<string,string>>({});
+ const [viewer,setViewer]=useState<ViewerState>(null);
+ const attachments=os.attachments||[];
+ const images=attachments.filter(a=>a.type.startsWith('image/'));
+ const documents=attachments.filter(a=>!a.type.startsWith('image/'));
  const summary=`O.S. ${os.number} — ${os.secretaria} / ${os.unidade}\nServiço: ${os.description}\nEquipe: ${os.team}\nStatus: ${os.status.replaceAll('_',' ')}\nProgresso: ${os.progress}%\nPrazo: ${new Date(os.deadline+'T12:00:00').toLocaleDateString('pt-BR')}\nMateriais: ${os.materialsSummary||'Não informado'}`;
  const share=async()=>{try{await navigator.clipboard.writeText(summary);alert('Resumo copiado. Você pode colar no WhatsApp.')}catch{prompt('Copie o resumo:',summary)}};
 
@@ -39,7 +48,7 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
   (async()=>{
    if(!desktop)return;
    const next:Record<string,string>={};
-   for(const a of os.attachments||[]){
+   for(const a of attachments){
     if(a.dataUrl){next[a.id]=a.dataUrl;continue;}
     if(a.storedPath&&a.type.startsWith('image/')){
      const data=await readDesktopAttachment(a.storedPath,a.type);
@@ -50,6 +59,24 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
   })();
   return()=>{cancelled=true};
  },[desktop,os.attachments]);
+
+ useEffect(()=>{
+  if(!viewer)return;
+  const onKey=(e:KeyboardEvent)=>{
+   if(e.key==='Escape')setViewer(null);
+   if(viewer.imageIndex===undefined)return;
+   if(e.key==='ArrowLeft')void navigateImage(-1);
+   if(e.key==='ArrowRight')void navigateImage(1);
+  };
+  window.addEventListener('keydown',onKey);
+  return()=>window.removeEventListener('keydown',onKey);
+ });
+
+ const resolveUrl=async(a:Attachment)=>{
+  if(a.dataUrl)return a.dataUrl;
+  if(desktop&&a.storedPath)return await readDesktopAttachment(a.storedPath,a.type);
+  return null;
+ };
 
  const createAttachment=async(file:File):Promise<Attachment|null>=>{
   if(!ALLOWED_MIME.has(file.type)){alert(`${file.name}: tipo de arquivo não permitido.`);return null;}
@@ -73,32 +100,43 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
    const created=await Promise.all(Array.from(files).map(createAttachment));
    const added=created.filter((x):x is Attachment=>Boolean(x));
    if(!added.length)return;
-   const attachments=[...(os.attachments||[]),...added];
-   onChange({...os,attachments,attachmentsCount:attachments.length});
+   const next=[...attachments,...added];
+   onChange({...os,attachments:next,attachmentsCount:next.length});
   }catch{
    alert('Não foi possível processar um ou mais arquivos selecionados.');
   }finally{if(fileRef.current)fileRef.current.value='';}
  };
 
  const openAttachment=async(a:Attachment)=>{
-  let url=a.dataUrl||null;
-  if(!url&&desktop&&a.storedPath)url=await readDesktopAttachment(a.storedPath,a.type);
+  const url=await resolveUrl(a);
   if(!url){alert('Não foi possível abrir este arquivo.');return}
-  const w=window.open();if(w)w.location.href=url;else alert('O navegador interno bloqueou a nova janela.');
+  const index=a.type.startsWith('image/')?images.findIndex(x=>x.id===a.id):-1;
+  setViewer({attachment:a,url,imageIndex:index>=0?index:undefined});
  };
+
+ const navigateImage=async(step:number)=>{
+  if(viewer?.imageIndex===undefined||!images.length)return;
+  const nextIndex=(viewer.imageIndex+step+images.length)%images.length;
+  const a=images[nextIndex];
+  const url=await resolveUrl(a);
+  if(!url)return;
+  setViewer({attachment:a,url,imageIndex:nextIndex});
+ };
+
  const delAttachment=async(a:Attachment)=>{
   if(!confirm(`Excluir o arquivo "${a.name}" desta O.S.? Esta ação removerá o arquivo armazenado.`))return;
   if(desktop&&a.storedPath){
    const removed=await deleteDesktopAttachment(a.storedPath);
    if(!removed){alert('Não foi possível excluir o arquivo do HD externo.');return;}
   }
-  const attachments=(os.attachments||[]).filter(x=>x.id!==a.id);
-  onChange({...os,attachments,attachmentsCount:attachments.length});
+  if(viewer?.attachment.id===a.id)setViewer(null);
+  const next=attachments.filter(x=>x.id!==a.id);
+  onChange({...os,attachments:next,attachmentsCount:next.length});
  };
  const archive=()=>onChange({...os,archived:!os.archived});
  const remove=()=>{if(confirm(`Excluir definitivamente a O.S. ${os.number}?`))onDelete()};
- const materialPdfs=(os.attachments||[]).filter(a=>a.category==='MATERIAL');
- const attachmentCount=(os.attachments||[]).length;
+ const materialPdfs=attachments.filter(a=>a.category==='MATERIAL');
+ const attachmentCount=attachments.length;
  const fmt=(date:string)=>new Date(date+'T12:00:00').toLocaleDateString('pt-BR');
  return <>
  <section className="print-os-sheet" aria-hidden="true">
@@ -121,8 +159,13 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
  <div className="tabs"><button className="active">Resumo</button><button>Andamentos</button><button>Fotos e arquivos</button><button>Materiais</button><button>Mão de obra</button><button>Histórico</button><button>Encerramento</button></div>
  <section className="content-grid"><article className="panel"><div className="panel-title"><h3>Informações da O.S.</h3><button onClick={onEdit}><Pencil size={15}/>Editar</button></div><dl><dt>Secretaria</dt><dd>{os.secretaria}</dd><dt>Unidade</dt><dd>{os.unidade}</dd><dt>Local</dt><dd>{os.local||'—'}</dd><dt>Ofício</dt><dd>{os.officeDocument||'Sem ofício vinculado'}</dd><dt>Prioridade</dt><dd>{os.priority}</dd><dt>Atendida</dt><dd>{os.attended?'Sim':'Não'}</dd><dt>Observações</dt><dd>{os.observations||'—'}</dd></dl></article>
  <article className="panel"><div className="panel-title"><h3>Materiais</h3><button onClick={onEdit}><Plus size={15}/>Editar</button></div><p>{os.materialsSummary||'Nenhum material informado.'}</p>{materialPdfs.map(a=><div className="mini-row" key={a.id}><FileText size={17}/><div><b>{a.name}</b><span>Lista de materiais em PDF</span></div><button onClick={()=>openAttachment(a)}><ExternalLink size={14}/>Abrir</button><button onClick={()=>delAttachment(a)}><Trash2 size={14}/>Excluir</button></div>)}<div className="mini-row"><Package size={17}/><span>Registro de materiais vinculado à O.S.</span></div></article>
- <article className="panel wide"><div className="panel-title"><h3>Fotos e documentos</h3><button onClick={()=>fileRef.current?.click()}><Plus size={15}/>Anexar</button><input ref={fileRef} type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx" onChange={e=>addFiles(e.target.files)}/></div>
- <div className="attachment-summary">{(os.attachments||[]).length===0?<div><Camera/><strong>Nenhum anexo</strong><span>Adicione fotos, ofícios, prints ou comprovantes.</span></div>:(os.attachments||[]).map(a=><div key={a.id}>{a.type.startsWith('image/')&&(a.dataUrl||previews[a.id])?<img src={a.dataUrl||previews[a.id]} alt={a.name} onClick={()=>openAttachment(a)} style={{width:'100%',height:90,objectFit:'cover',borderRadius:8,cursor:'pointer'}}/>:<FileText/>}<strong>{a.name}</strong><span>{a.category}{a.sizeBytes?` • ${(a.sizeBytes/1024).toFixed(0)} KB`:''}</span><div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}><button onClick={()=>openAttachment(a)}><ExternalLink size={14}/>Abrir</button><button onClick={()=>delAttachment(a)}><Trash2 size={14}/>Excluir</button></div></div>)}</div><p className="hint">{desktop?'Os anexos desta versão são gravados fisicamente na pasta sos-data/anexos do HD externo.':'Na versão web, anexos pequenos permanecem no armazenamento local para compatibilidade.'}</p></article>
+ <article className="panel wide os-attachments"><div className="panel-title"><div><h3>Fotos e documentos</h3><p className="hint">Galeria de imagens e arquivos vinculados à O.S.</p></div><button onClick={()=>fileRef.current?.click()}><Plus size={15}/>Anexar</button><input ref={fileRef} type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx" onChange={e=>addFiles(e.target.files)}/></div>
+ {attachments.length===0?<div className="attachment-empty"><Camera/><strong>Nenhum anexo</strong><span>Adicione fotos, ofícios, PDFs, prints ou comprovantes.</span></div>:<>
+  {images.length>0&&<section className="attachment-group"><div className="attachment-group-title"><h4>Galeria de fotos</h4><span>{images.length} {images.length===1?'imagem':'imagens'}</span></div><div className="photo-grid">{images.map((a,index)=><article className="photo-card" key={a.id}><button className="photo-thumb" type="button" onClick={()=>openAttachment(a)}><img src={a.dataUrl||previews[a.id]} alt={a.name}/><span>Visualizar</span></button><div className="photo-meta"><strong title={a.name}>{a.name}</strong><small>{a.category} • {fileSize(a)}</small><div><button type="button" onClick={()=>openAttachment(a)}><ExternalLink size={14}/>Abrir</button><button type="button" onClick={()=>delAttachment(a)}><Trash2 size={14}/>Excluir</button></div></div></article>)}</div></section>}
+  {documents.length>0&&<section className="attachment-group"><div className="attachment-group-title"><h4>Documentos e arquivos</h4><span>{documents.length} {documents.length===1?'arquivo':'arquivos'}</span></div><div className="document-grid">{documents.map(a=><article className="document-card" key={a.id}><div className="document-icon"><FileText size={24}/><span>{fileKind(a)}</span></div><div className="document-meta"><strong title={a.name}>{a.name}</strong><small>{a.category} • {fileSize(a)}</small><small>{fmt(a.createdAt.slice(0,10))}</small></div><div className="document-actions"><button type="button" onClick={()=>openAttachment(a)}><ExternalLink size={14}/>Abrir</button><button type="button" onClick={()=>delAttachment(a)}><Trash2 size={14}/>Excluir</button></div></article>)}</div></section>}
+ </>}<p className="hint">{desktop?'Os anexos são gravados fisicamente na pasta sos-data/anexos do HD externo.':'Na versão web, anexos pequenos permanecem no armazenamento local para compatibilidade.'}</p></article>
  <article className="panel"><div className="panel-title"><h3>Andamento</h3><button onClick={onEdit}><Plus size={15}/>Atualizar</button></div><div className="timeline"><div><Clock3/><p><b>Status atual</b><br/>{os.status.replaceAll('_',' ')} — {os.progress}% concluído.</p></div><div><MessageSquareText/><p><b>Observação</b><br/>{os.observations||'Nenhuma observação registrada.'}</p></div></div></article>
- <article className="panel"><div className="panel-title"><h3>Mão de obra</h3><button onClick={onEdit}><Plus size={15}/>Editar</button></div><div className="mini-row"><Users size={18}/><div><b>{os.team}</b><span>{os.estimatedAmount} {os.estimatedUnit.toLowerCase()} previstas • {os.workforceOrigin}</span></div></div></article></section></>
+ <article className="panel"><div className="panel-title"><h3>Mão de obra</h3><button onClick={onEdit}><Plus size={15}/>Editar</button></div><div className="mini-row"><Users size={18}/><div><b>{os.team}</b><span>{os.estimatedAmount} {os.estimatedUnit.toLowerCase()} previstas • {os.workforceOrigin}</span></div></div></article></section>
+ {viewer&&<div className="attachment-viewer" role="dialog" aria-modal="true" onClick={()=>setViewer(null)}><div className="attachment-viewer-card" onClick={e=>e.stopPropagation()}><div className="attachment-viewer-head"><div><strong>{viewer.attachment.name}</strong><span>{fileKind(viewer.attachment)} • {fileSize(viewer.attachment)}{viewer.imageIndex!==undefined?` • ${viewer.imageIndex+1} de ${images.length}`:''}</span></div><button className="icon-btn" type="button" title="Fechar" onClick={()=>setViewer(null)}><X size={20}/></button></div><div className="attachment-viewer-body">{viewer.attachment.type.startsWith('image/')?<><img src={viewer.url} alt={viewer.attachment.name}/>{images.length>1&&<><button className="viewer-nav viewer-prev" type="button" onClick={()=>navigateImage(-1)}><ChevronLeft size={28}/></button><button className="viewer-nav viewer-next" type="button" onClick={()=>navigateImage(1)}><ChevronRight size={28}/></button></>}</>:viewer.attachment.type==='application/pdf'?<iframe src={viewer.url} title={viewer.attachment.name}/>:<div className="unsupported-preview"><FileText size={54}/><strong>{viewer.attachment.name}</strong><p>Este tipo de arquivo não possui pré-visualização interna. O arquivo continua armazenado normalmente na O.S.</p></div>}</div></div></div>}
+ </>;
 }
