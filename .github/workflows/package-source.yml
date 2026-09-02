@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/package-source.yml'
+      - 'AUDITORIA-OUTRA-IA.md'
 
 jobs:
   package-source:
@@ -16,15 +17,16 @@ jobs:
 
       - name: Create source ZIP
         run: |
-          zip -r SOS-Engenharia-Codigo-Fonte-main.zip \
-            src src-tauri docs public \
-            package.json tsconfig.json vite.config.ts index.html README.md .gitignore \
+          zip -r SOS-Engenharia-Auditoria-Completa.zip \
+            src src-tauri docs public scripts \
+            package.json tsconfig.json vite.config.ts index.html README.md .gitignore AUDITORIA-OUTRA-IA.md \
             .github/workflows/build-portable-windows.yml \
-            -x 'src-tauri/target/*' 'node_modules/*' 'dist/*'
+            .github/workflows/package-source.yml \
+            -x 'src-tauri/target/*' 'node_modules/*' 'dist/*' '*.log'
 
       - name: Upload source package
         uses: actions/upload-artifact@v4
         with:
-          name: SOS-Engenharia-Codigo-Fonte
-          path: SOS-Engenharia-Codigo-Fonte-main.zip
+          name: SOS-Engenharia-Auditoria-Completa
+          path: SOS-Engenharia-Auditoria-Completa.zip
           if-no-files-found: error
