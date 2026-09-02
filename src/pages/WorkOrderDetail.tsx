@@ -42,6 +42,9 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
  const documents=attachments.filter(a=>!a.type.startsWith('image/'));
  const summary=`O.S. ${os.number} — ${os.secretaria} / ${os.unidade}\nServiço: ${os.description}\nEquipe: ${os.team}\nStatus: ${os.status.replaceAll('_',' ')}\nProgresso: ${os.progress}%\nPrazo: ${new Date(os.deadline+'T12:00:00').toLocaleDateString('pt-BR')}\nMateriais: ${os.materialsSummary||'Não informado'}`;
  const share=async()=>{try{await navigator.clipboard.writeText(summary);alert('Resumo copiado. Você pode colar no WhatsApp.')}catch{prompt('Copie o resumo:',summary)}};
+ const canCharge=os.overdueDays>0&&!os.archived&&os.status!=='CONCLUIDA'&&os.status!=='CANCELADA';
+ const chargeMessage=`Prezados,\n\nReferente à O.S. ${os.number}, solicitamos atualização e providências quanto ao serviço abaixo:\n\nServiço: ${os.description}\nLocal: ${os.secretaria}${os.unidade?` / ${os.unidade}`:''}${os.local?` / ${os.local}`:''}\nPrazo previsto: ${new Date(os.deadline+'T12:00:00').toLocaleDateString('pt-BR')}\nSituação: O.S. em atraso há ${os.overdueDays} ${os.overdueDays===1?'dia':'dias'}${os.team&&os.team!=='Não informado'?`\nEquipe/empresa responsável: ${os.team}`:''}\n\nPedimos, por gentileza, informar a situação atual e a previsão para conclusão do serviço.\n\nDepartamento de Engenharia`;
+ const charge=async()=>{try{await navigator.clipboard.writeText(chargeMessage);alert('Mensagem de cobrança copiada. Você pode colar no WhatsApp.')}catch{prompt('Copie a mensagem de cobrança:',chargeMessage)}};
 
  useEffect(()=>{
   let cancelled=false;
@@ -124,7 +127,7 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
  };
 
  const delAttachment=async(a:Attachment)=>{
-  if(!confirm(`Excluir o arquivo "${a.name}" desta O.S.? Esta ação removerá o arquivo armazenado.`))return;
+  if(!confirm(`Excluir o arquivo \"${a.name}\" desta O.S.? Esta ação removerá o arquivo armazenado.`))return;
   if(desktop&&a.storedPath){
    const removed=await deleteDesktopAttachment(a.storedPath);
    if(!removed){alert('Não foi possível excluir o arquivo do HD externo.');return;}
@@ -153,7 +156,7 @@ export default function WorkOrderDetail({os,onBack,onEdit,onChange,onDelete,canD
    <div className="print-os-bottom"><span>Ofício / Documento: <b>{os.officeDocument||'—'}</b></span><span>Anexos: <b>{attachmentCount}</b></span><span>Atendida: <b>{os.attended?'Sim':'Não'}</b></span></div>
    <div className="print-os-sign"><div>Responsável pelo registro</div><div>Responsável pela execução/conferência</div></div>
  </section>
- <header className="topbar"><div className="title-row"><button className="icon-btn" onClick={onBack}><ArrowLeft size={20}/></button><div><h1>O.S. {os.number}</h1><p>{os.secretaria} • {os.unidade}{os.local?` • ${os.local}`:''}</p></div></div><div className="actions"><button onClick={onEdit}><Pencil size={16}/>Editar</button><button onClick={archive}><Archive size={16}/>{os.archived?'Restaurar':'Arquivar'}</button><button onClick={()=>window.print()}><Printer size={16}/>Imprimir</button><button onClick={share}><Share2 size={16}/>Gerar resumo</button>{canDelete&&<button className="danger" onClick={remove}><Trash2 size={16}/>Excluir</button>}</div></header>
+ <header className="topbar"><div className="title-row"><button className="icon-btn" onClick={onBack}><ArrowLeft size={20}/></button><div><h1>O.S. {os.number}</h1><p>{os.secretaria} • {os.unidade}{os.local?` • ${os.local}`:''}</p></div></div><div className="actions"><button onClick={onEdit}><Pencil size={16}/>Editar</button><button onClick={archive}><Archive size={16}/>{os.archived?'Restaurar':'Arquivar'}</button><button onClick={()=>window.print()}><Printer size={16}/>Imprimir</button><button onClick={share}><Share2 size={16}/>Gerar resumo</button>{canCharge&&<button onClick={charge}><MessageSquareText size={16}/>Cobrar atraso</button>}{canDelete&&<button className="danger" onClick={remove}><Trash2 size={16}/>Excluir</button>}</div></header>
  <section className="detail-hero"><div><span className={`status s-${os.status.toLowerCase()}`}>{os.status.replaceAll('_',' ')}</span><h2>{os.serviceType}</h2><p>{os.description}</p></div><div className="progress-box"><div><span>Progresso</span><strong>{os.progress}%</strong></div><div className="progress-track"><i style={{width:`${os.progress}%`}}/></div><small>{os.overdueDays>0?`Atrasada há ${os.overdueDays} dias`:'Dentro do prazo'}</small></div></section>
  <section className="detail-grid"><article><span>Data de abertura</span><strong>{fmt(os.openedAt)}</strong></article><article><span>Prazo</span><strong>{fmt(os.deadline)}</strong></article><article><span>Tempo previsto</span><strong>{os.estimatedAmount} {os.estimatedUnit.toLowerCase()}</strong></article><article><span>Equipe</span><strong>{os.team}</strong><small>{os.workforceOrigin}</small></article></section>
  <div className="tabs"><button className="active">Resumo</button><button>Andamentos</button><button>Fotos e arquivos</button><button>Materiais</button><button>Mão de obra</button><button>Histórico</button><button>Encerramento</button></div>
