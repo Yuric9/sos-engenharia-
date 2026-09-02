@@ -45,3 +45,94 @@ td .sub.clamp{display:-webkit-box;white-space:normal;-webkit-line-clamp:2;-webki
  .metric{min-height:108px}
  .table-scroll table{min-width:820px}
 }
+
+/* ==== Obras: formulário enxuto e no mesmo padrão da Nova O.S. ==== */
+/* O formulário de Obras é identificado pela segunda seção com 7 campos do cadastro antigo. */
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel{
+  border:1px solid #d9e4dc;
+  border-radius:14px;
+  padding:22px 24px;
+  box-shadow:0 1px 2px rgba(20,55,35,.04);
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) .panel-title{
+  margin-bottom:18px;
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) .panel-title h3{
+  margin:0 0 4px;
+  font-size:17px;
+  color:var(--green-900);
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) .form-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px 18px;
+  align-items:end;
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) label{
+  min-width:0;
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) label > span{
+  display:block;
+  margin-bottom:7px;
+  color:var(--green-900);
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.01em;
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) input,
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) select,
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) textarea{
+  width:100%;
+  min-height:44px;
+  border:1px solid #cfdcd3;
+  border-radius:9px;
+  background:#fff;
+  padding:10px 12px;
+  font:inherit;
+  color:#173625;
+  box-sizing:border-box;
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) textarea{
+  min-height:110px;
+  resize:vertical;
+}
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) input:focus,
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) select:focus,
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) textarea:focus{
+  outline:none;
+  border-color:#7ba58a;
+  box-shadow:0 0 0 3px rgba(44,105,70,.10);
+}
+
+/* Removidos do cadastro de Obras: Secretaria e Local/Unidade. */
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel:nth-of-type(1) .form-grid > label:nth-child(3),
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel:nth-of-type(1) .form-grid > label:nth-child(4){display:none}
+/* Removidos: Processo/Licitação, Modalidade e Valor contratual atualizado. */
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel:nth-of-type(2) .form-grid > label:nth-child(4),
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel:nth-of-type(2) .form-grid > label:nth-child(5),
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel:nth-of-type(2) .form-grid > label:nth-child(7){display:none}
+/* Removido: CREA/CAU. */
+form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel:nth-of-type(3) .form-grid > label:nth-child(5){display:none}
+
+/* Lista de Obras: não exibir dados antigos de Secretaria/Local. */
+section.table-card:has(.filters) tbody td:nth-child(1) .sub,
+section.table-card:has(.filters) tbody td:nth-child(2) .sub{display:none}
+
+/* Detalhe da obra: retirar campos descartados e indicadores de pagamento. */
+section.detail-grid > article.panel:first-child p:nth-of-type(3),
+section.detail-grid > article.panel:first-child p:nth-of-type(4),
+section.detail-grid > article.panel:first-child p:nth-of-type(5),
+section.detail-grid > article.panel:nth-child(2) p:nth-of-type(5){display:none}
+header.topbar + section.cards:has(+ section.chart-card) .metric:nth-child(4){display:none}
+section.chart-card:has(+ section.detail-grid) .metric:nth-child(2),
+section.chart-card:has(+ section.detail-grid) .metric:nth-child(3){display:none}
+section.detail-grid + section.table-card table th:nth-child(6),
+section.detail-grid + section.table-card table td:nth-child(6){display:none}
+section.detail-grid + section.table-card + section.panel .form-grid > label:nth-child(6){display:none}
+
+@media(max-width:1050px){
+ form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+ form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) .form-grid{grid-template-columns:1fr}
+ form:has(> section.panel:nth-of-type(2) .form-grid > label:nth-child(7)) > section.panel{padding:18px}
+}
