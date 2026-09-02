@@ -15,7 +15,7 @@ export default function Dashboard({orders,onOpen,onNew}:{orders:WorkOrder[];onOp
   const f=filter==='TODAS'?!o.archived:filter==='ATRASADAS'?!o.archived&&o.overdueDays>0:filter==='PARALISADAS'?!o.archived&&(o.status==='PARALISADA'||o.status==='AGUARDANDO_MATERIAL'):filter==='ARQUIVADAS'?o.archived:!o.archived&&o.status===filter;
   let month=true;if(monthFilter!==null){const d=new Date(o.openedAt+'T12:00:00');month=Number.isFinite(d.getTime())&&d.getMonth()===monthFilter;}
   return search&&f&&month;
- }),[currentYearOrders,q,filter,monthFilter]);
+ }).sort((a,b)=>b.number-a.number||b.openedAt.localeCompare(a.openedAt)||b.id-a.id),[currentYearOrders,q,filter,monthFilter]);
  const months=Array.from({length:12},(_,i)=>operational.filter(o=>{const d=new Date(o.openedAt+'T12:00:00');return Number.isFinite(d.getTime())&&d.getMonth()===i}).length);
  const max=Math.max(1,...months);
  const priorityStyle=(priority:WorkOrder['priority'])=>({display:'inline-block',padding:'4px 8px',borderRadius:999,fontSize:11,fontWeight:700 as const,background:priority==='URGENTE'?'#fee2e2':priority==='ALTA'?'#ffedd5':priority==='MEDIA'?'#fef3c7':'#e0f2fe',color:priority==='URGENTE'?'#991b1b':priority==='ALTA'?'#9a3412':priority==='MEDIA'?'#92400e':'#075985'});
