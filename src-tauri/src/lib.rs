@@ -1,6 +1,8 @@
 mod database;
 mod portable;
 
+use std::path::{Component,Path};
+
 #[tauri::command]
 fn app_mode() -> String { if portable::is_portable(){"portable".into()}else{"installed".into()} }
 #[tauri::command]
@@ -24,13 +26,27 @@ fn read_attachment(stored_path:String,mime_type:String)->Result<String,String>{d
 #[tauri::command]
 fn delete_attachment(stored_path:String)->Result<(),String>{database::delete_attachment(&stored_path)}
 #[tauri::command]
+fn open_attachment(stored_path:String)->Result<(),String>{
+    let rel=Path::new(&stored_path);
+    if rel.is_absolute()||rel.components().any(|c|!matches!(c,Component::Normal(_))){return Err("Caminho de anexo inválido".into())}
+    let path=portable::data_root().join("anexos").join(rel);
+    if !path.is_file(){return Err("Arquivo não encontrado no HD externo".into())}
+    #[cfg(target_os="windows")]
+    {
+        std::process::Command::new("cmd").arg("/C").arg("start").arg("").arg(&path).spawn().map_err(|e|e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os="windows"))]
+    { Err("Abertura externa disponível na versão Windows.".into()) }
+}
+#[tauri::command]
 fn backup_now() -> Result<String,String> { database::backup_now().map_err(|e|e.to_string()) }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(){
     database::initialize().expect("não foi possível inicializar o banco S.O.S");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_mode,database_location,load_snapshot,save_snapshot,load_orders,save_order,delete_order,replace_orders,save_attachment,read_attachment,delete_attachment,backup_now])
+        .invoke_handler(tauri::generate_handler![app_mode,database_location,load_snapshot,save_snapshot,load_orders,save_order,delete_order,replace_orders,save_attachment,read_attachment,delete_attachment,open_attachment,backup_now])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar S.O.S");
 }
