@@ -33,7 +33,7 @@ export async function saveDesktopOrder<T>(order:T,userId?:number):Promise<boolea
 
 export async function deleteDesktopOrder(id:number,userId?:number):Promise<boolean>{
   if(!isDesktopMode())return true;
-  try{await invoke<void>('delete_order',{id,userId:userId??null});return true}catch(error){console.error('Falha ao excluir O.S. no SQLite.',error);return false}
+  try{await invoke<void>('delete_order',{id,userId:userId??null});return true}catch(error){console.error('Falha ao excluir O.S. do banco SQLite.',error);return false}
 }
 
 export async function replaceDesktopOrders<T>(orders:T[],userId?:number):Promise<boolean>{
@@ -59,6 +59,11 @@ export async function deleteDesktopAttachment(storedPath:string):Promise<boolean
 export async function openDesktopAttachment(storedPath:string):Promise<boolean>{
   if(!isDesktopMode())return false;
   try{await invoke<void>('open_attachment',{storedPath});return true}catch(error){console.error('Falha ao abrir anexo no aplicativo padrão do Windows.',error);return false}
+}
+
+export async function runDesktopBackupSelfTest():Promise<string|null>{
+  if(!isDesktopMode())return null;
+  try{return await invoke<string>('backup_self_test')}catch(error){console.error('Falha no autoteste de backup/restauração.',error);return null}
 }
 
 export async function getDesktopDatabaseLocation():Promise<string|null>{if(!isDesktopMode())return null;try{return await invoke<string>('database_location')}catch{return null}}
