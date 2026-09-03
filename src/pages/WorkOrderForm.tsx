@@ -4,7 +4,7 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Attachment, WorkOrder } from '../types';
 import { Catalogs } from '../lib/catalogs';
-import { isDesktopMode } from '../lib/nativeDb';
+import { isDesktopMode, saveDesktopAttachment } from '../lib/nativeDb';
 
 GlobalWorkerOptions.workerSrc=pdfWorker;
 const DESKTOP_MAX_BYTES=10*1024*1024;
@@ -38,9 +38,9 @@ function extractOsDate(text:string){
  return '';
 }
 
-export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:{initial?:WorkOrder;number:number;onCancel:()=>void;onSave:(os:WorkOrder)=>void;catalogs:Catalogs}){
+export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:{initial?:WorkOrder;number:number;onCancel:()=>void;onSave:(os:WorkOrder)=>void|Promise<void>;catalogs:Catalogs}){
  const [f,setF]=useState<WorkOrder>(initial??{id:Date.now(),number,openedAt:new Date().toISOString().slice(0,10),secretaria:'',unidade:'',local:'',serviceType:'',description:'',team:'Equipe Própria',workforceOrigin:'Mão de obra própria',priority:'MEDIA',deadline:new Date().toISOString().slice(0,10),estimatedAmount:1,estimatedUnit:'DIARIAS',status:'ABERTA',progress:10,attended:false,archived:false,materialsSummary:'',notesCount:0,attachmentsCount:0,officeDocument:'',overdueDays:0,observations:'',attachments:[]});
- const [readingPdf,setReadingPdf]=useState(false);const osPdfRef=useRef<HTMLInputElement>(null);const materialPdfRef=useRef<HTMLInputElement>(null);
+ const [readingPdf,setReadingPdf]=useState(false);const [saving,setSaving]=useState(false);const osPdfRef=useRef<HTMLInputElement>(null);const materialPdfRef=useRef<HTMLInputElement>(null);
  const set=(k:keyof WorkOrder,v:any)=>setF(x=>({...x,[k]:v}));
  const units=catalogs.unidades.filter(x=>x.active&&(!f.secretaria||x.parent===f.secretaria));
  const active=(key:keyof Catalogs)=>catalogs[key].filter(x=>x.active);
@@ -50,6 +50,18 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
   const max=isDesktopMode()?DESKTOP_MAX_BYTES:WEB_MAX_BYTES;if(file.size>max){alert(`O PDF excede o limite de ${isDesktopMode()?'10 MB':'900 KB'}.`);return false}
   const attachment:Attachment={id:crypto.randomUUID(),name:file.name,type:'application/pdf',category,dataUrl:await fileToDataUrl(file),sizeBytes:file.size,createdAt:new Date().toISOString()};
   setF(x=>{const attachments=[...(x.attachments||[]),attachment];return {...x,attachments,attachmentsCount:attachments.length}});return true;
+ };
+ const persistPendingAttachments=async(order:WorkOrder):Promise<WorkOrder|null>=>{
+  if(!isDesktopMode())return order;
+  const attachments:Attachment[]=[];
+  for(const item of order.attachments||[]){
+   if(item.storedPath||!item.dataUrl){attachments.push(item);continue}
+   const comma=item.dataUrl.indexOf(',');if(comma<0){alert(`O anexo ${item.name} está inválido.`);return null}
+   const storedPath=await saveDesktopAttachment(order.id,item.id,item.name,item.type,item.dataUrl.slice(comma+1));
+   if(!storedPath){alert(`Não foi possível gravar o anexo ${item.name} no HD externo. A O.S. não foi salva.`);return null}
+   const {dataUrl,...rest}=item;attachments.push({...rest,storedPath});
+  }
+  return {...order,attachments,attachmentsCount:attachments.length};
  };
  const importOsPdf=async(file:File|null)=>{
   if(!file)return;setReadingPdf(true);
@@ -70,8 +82,8 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
   }catch(err){alert(`Não foi possível ler automaticamente este PDF. O arquivo não foi usado para preencher os campos. ${err instanceof Error?err.message:''}`)}finally{setReadingPdf(false);if(osPdfRef.current)osPdfRef.current.value=''}
  };
  const attachMaterialPdf=async(file:File|null)=>{if(!file)return;try{if(await addPdfAttachment(file,'MATERIAL'))alert('Lista de materiais anexada à O.S.')}catch{alert('Não foi possível anexar a lista de materiais.')}finally{if(materialPdfRef.current)materialPdfRef.current.value=''}};
- const submit=(e:any)=>{
-  e.preventDefault();
+ const submit=async(e:any)=>{
+  e.preventDefault();if(saving)return;
   const missing:string[]=[];
   if(!Number.isInteger(f.number)||f.number<=0)missing.push('Número da O.S.');
   if(!f.openedAt.trim())missing.push('Data da O.S.');
@@ -82,7 +94,8 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
   if(!f.priority.trim())missing.push('Prioridade');
   if(!Number.isFinite(f.estimatedAmount)||f.estimatedAmount<=0)missing.push('Tempo previsto');
   if(missing.length){alert(`Ainda falta preencher: ${missing.join(', ')}.`);return;}
-  onSave(f)
+  setSaving(true);
+  try{const prepared=await persistPendingAttachments(f);if(!prepared)return;setF(prepared);await onSave(prepared)}finally{setSaving(false)}
  };
  const materialPdfs=(f.attachments||[]).filter(a=>a.category==='MATERIAL');const osPdfs=(f.attachments||[]).filter(a=>a.category==='OFICIO');const lastOsPdf=osPdfs.length?osPdfs[osPdfs.length-1]:undefined;
  return <><header className="topbar"><div className="title-row"><button className="icon-btn" onClick={onCancel}><ArrowLeft size={20}/></button><div><h1>{initial?'Editar':'Nova'} O.S. #{f.number||'—'}</h1><p>Cadastro completo da Ordem de Serviço</p></div></div></header><form onSubmit={submit} className="panel" style={{maxWidth:1100}}><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
@@ -103,4 +116,4 @@ export default function WorkOrderForm({initial,number,onCancel,onSave,catalogs}:
  <label style={{display:'block',marginTop:14}}><span>Materiais previstos/utilizados (opcional)</span><textarea style={{...inputStyle,minHeight:80}} value={f.materialsSummary} onChange={e=>set('materialsSummary',e.target.value)} placeholder="Campo livre para observações ou materiais informados manualmente."/><button type="button" style={{marginTop:8}} onClick={()=>materialPdfRef.current?.click()}><Paperclip size={15}/> Anexar PDF da lista de materiais</button><input ref={materialPdfRef} type="file" hidden accept="application/pdf,.pdf" onChange={e=>attachMaterialPdf(e.target.files?.[0]||null)}/>{materialPdfs.map(a=><small key={a.id} style={{display:'block',marginTop:6}}>Lista anexada: {a.name}</small>)}</label>
  <label style={{display:'block',marginTop:14}}><span>Observações (opcional)</span><textarea style={{...inputStyle,minHeight:80}} value={f.observations||''} onChange={e=>set('observations',e.target.value)}/></label>
  {initial&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginTop:14}}><label><span>Status</span><select style={inputStyle} value={f.status} onChange={e=>set('status',e.target.value)}>{['ABERTA','EM_ANDAMENTO','PARALISADA','AGUARDANDO_MATERIAL','ATENDIDA','CONCLUIDA','CANCELADA'].map(x=><option key={x}>{x}</option>)}</select></label><label><span>Progresso (%)</span><input style={inputStyle} type="number" min="0" max="100" value={f.progress} onChange={e=>set('progress',Number(e.target.value))}/></label></div>}
- <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:20}}><button type="button" className="icon-btn" onClick={onCancel}>Cancelar</button><button className="primary" type="submit"><Save size={18}/>Salvar O.S.</button></div></form></>}
+ <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:20}}><button type="button" className="icon-btn" onClick={onCancel} disabled={saving}>Cancelar</button><button className="primary" type="submit" disabled={saving||readingPdf}><Save size={18}/>{saving?'Salvando...':'Salvar O.S.'}</button></div></form></>}
