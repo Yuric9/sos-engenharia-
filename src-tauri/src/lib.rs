@@ -1,3 +1,4 @@
+mod backup_verify;
 mod database;
 mod portable;
 
@@ -41,12 +42,14 @@ fn open_attachment(stored_path:String)->Result<(),String>{
 }
 #[tauri::command]
 fn backup_now() -> Result<String,String> { database::backup_now().map_err(|e|e.to_string()) }
+#[tauri::command]
+fn backup_self_test() -> Result<String,String> { backup_verify::run() }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(){
     database::initialize().expect("não foi possível inicializar o banco S.O.S");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_mode,database_location,load_snapshot,save_snapshot,load_orders,save_order,delete_order,replace_orders,save_attachment,read_attachment,delete_attachment,open_attachment,backup_now])
+        .invoke_handler(tauri::generate_handler![app_mode,database_location,load_snapshot,save_snapshot,load_orders,save_order,delete_order,replace_orders,save_attachment,read_attachment,delete_attachment,open_attachment,backup_now,backup_self_test])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar S.O.S");
 }
