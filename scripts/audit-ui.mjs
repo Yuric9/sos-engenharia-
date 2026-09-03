@@ -53,14 +53,14 @@ if(form.includes("missing.push('Unidade"))failures.push('WorkOrderForm: Unidade 
 
 const app=fs.readFileSync(path.join(root,'src/App.tsx'),'utf8');
 for(const guard of ["if(!isAdmin)return false","Somente Admin pode excluir uma O.S.","view==='usuarios'&&isAdmin","view==='backup'&&isAdmin","view==='import'&&isAdmin"]){if(!app.includes(guard))failures.push(`App.tsx: proteção administrativa esperada ausente: ${guard}`)}
-for(const token of ['withAutoAudit','MENSAGEM','IMPORTACAO','O.S. arquivada','O.S. restaurada'])if(!app.includes(token))failures.push(`App.tsx: histórico/auditoria esperado ausente: ${token}`);
+for(const token of ['withAutoAudit','IMPORTACAO','O.S. arquivada','O.S. restaurada'])if(!app.includes(token))failures.push(`App.tsx: histórico/auditoria esperado ausente: ${token}`);
 
 const storage=fs.readFileSync(path.join(root,'src/lib/storage.ts'),'utf8');
 if(!storage.includes("os.attended||['ATENDIDA','CONCLUIDA','CANCELADA']"))failures.push('storage.ts: ATENDIDA/attended não encerra a contagem de atraso');
 if(!storage.includes('repairHistoricalDates')||!storage.includes("officeDocument?.startsWith('HIST-')"))failures.push('storage.ts: reparo seguro das datas históricas não encontrado');
 
 const detail=fs.readFileSync(path.join(root,'src/pages/WorkOrderDetail.tsx'),'utf8');
-for(const token of ['Histórico da O.S.','Mensagem copiada —','Cobrança nº','openDesktopAttachment','Atendida — contagem de atraso encerrada'])if(!detail.includes(token))failures.push(`WorkOrderDetail: recurso esperado ausente: ${token}`);
+for(const token of ['Histórico da O.S.','Mensagem copiada —','Cobrança nº','openDesktopAttachment','Atendida — contagem de atraso encerrada',"kind:'MENSAGEM'"])if(!detail.includes(token))failures.push(`WorkOrderDetail: recurso esperado ausente: ${token}`);
 
 const works=fs.readFileSync(path.join(root,'src/pages/Works.tsx'),'utf8');
 for(const obsolete of ['processNumber','procurementMode','updatedValue','professionalRegistry','paidAt'])if(works.includes(obsolete))failures.push(`Works.tsx: campo antigo ainda presente: ${obsolete}`);
