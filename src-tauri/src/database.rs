@@ -23,8 +23,18 @@ fn validate_order(raw:&str)->std::result::Result<(i64,i64),String>{
     Ok((id,number))
 }
 
+fn compact_audit_json(raw:Option<&str>)->Option<String>{
+    raw.map(|text|{
+        let Ok(mut value)=serde_json::from_str::<Value>(text) else{return text.to_string()};
+        if let Some(obj)=value.as_object_mut(){obj.remove("history");}
+        value.to_string()
+    })
+}
+
 fn audit(tx:&Transaction<'_>,user_id:Option<i64>,action:&str,entity_id:Option<i64>,before:Option<&str>,after:Option<&str>)->Result<()>{
-    tx.execute("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,before_json,after_json,machine) VALUES(?1,?2,'WORK_ORDER',?3,?4,?5,?6)",params![user_id,action,entity_id,before,after,std::env::var("COMPUTERNAME").unwrap_or_default()])?;
+    let compact_before=compact_audit_json(before);
+    let compact_after=compact_audit_json(after);
+    tx.execute("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,before_json,after_json,machine) VALUES(?1,?2,'WORK_ORDER',?3,?4,?5,?6)",params![user_id,action,entity_id,compact_before.as_deref(),compact_after.as_deref(),std::env::var("COMPUTERNAME").unwrap_or_default()])?;
     Ok(())
 }
 
