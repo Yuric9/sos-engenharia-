@@ -132,13 +132,13 @@ export default function App(){
   };
   const bulkCharge=async(ids:number[],context:string)=>{
     const requested=new Set(ids);
-    const allowed=new Set(accessibleOrders.filter(o=>!o.archived&&o.overdueDays>0&&!['ATENDIDA','CONCLUIDA','CANCELADA'].includes(o.status)).map(o=>o.id));
+    const allowed=new Set(accessibleOrders.filter(o=>!o.archived&&['ABERTA','EM_ANDAMENTO','PARALISADA','AGUARDANDO_MATERIAL'].includes(o.status)).map(o=>o.id));
     const targets=orders.filter(o=>requested.has(o.id)&&allowed.has(o.id));
-    if(!targets.length){alert('Nenhuma O.S. ativa em atraso foi encontrada para registrar a cobrança.');return false}
+    if(!targets.length){alert('Nenhuma O.S. aberta foi encontrada para registrar a cobrança.');return false}
     return persistOrderChange(previous=>previous.map(o=>{
       if(!requested.has(o.id)||!allowed.has(o.id))return o;
       const previousCharges=(o.history||[]).filter(h=>h.kind==='MENSAGEM'&&h.messageKind==='ATRASO').length;
-      const event=audit('MENSAGEM','Cobrança em lote — atraso',session.name,`Cobrança nº ${previousCharges+1} • ${context}`,'ATRASO');
+      const event=audit('MENSAGEM','Cobrança em lote — atualização',session.name,`Cobrança nº ${previousCharges+1} • ${context}`,'ATRASO');
       return {...o,history:[event,...(o.history||[])]};
     }));
   };
