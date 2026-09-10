@@ -126,7 +126,7 @@ export default function App(){
     if(!targets.length){alert('Nenhuma O.S. ativa válida foi encontrada para atualização.');return false}
     return persistOrderChange(previous=>previous.map(o=>{
       if(!requested.has(o.id)||!allowed.has(o.id)||o.archived)return o;
-      const next:WorkOrder={...o,status,attended:status==='ATENDIDA'||status==='CONCLUIDA',progress:status==='CONCLUIDA'?100:o.progress};
+      const next:WorkOrder={...o,status,attended:status==='ATENDIDA'||status==='CONCLUIDA',progress:status==='ATENDIDA'||status==='CONCLUIDA'?100:o.progress};
       return recalcOverdue(withAutoAudit(o,next,session.name));
     }));
   };

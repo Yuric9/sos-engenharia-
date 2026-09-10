@@ -85,7 +85,8 @@ export function saveOrders(orders:WorkOrder[]):boolean{
 export function nextOrderNumber(orders:WorkOrder[]){return Math.max(0,...orders.map(o=>o.number))+1;}
 
 export function recalcOverdue(os:WorkOrder):WorkOrder{
-  if(os.attended||['ATENDIDA','CONCLUIDA','CANCELADA'].includes(os.status)) return {...os,overdueDays:0};
+  if(['ATENDIDA','CONCLUIDA'].includes(os.status)) return {...os,attended:true,progress:100,overdueDays:0};
+  if(os.attended||os.status==='CANCELADA') return {...os,overdueDays:0};
   const end=new Date(os.deadline+'T23:59:59').getTime();
   const diff=Date.now()-end;
   return {...os,overdueDays:Number.isFinite(diff)&&diff>0?Math.ceil(diff/86400000):0};
