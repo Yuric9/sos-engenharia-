@@ -22,7 +22,6 @@ import { createDesktopBackup, deleteDesktopOrder, getDesktopDatabaseLocation, is
 type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived'|'backup'|'import'|'works';
 export const OWN_TEAM='Mão de obra própria — Departamento de Engenharia';
 export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
-export const INOVART_NAME='INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
 const SCOPE_LABELS:Record<UserScope,string>={EXECUTIVO:'Executivo',SAUDE:'Saúde',EDUCACAO:'Educação',GABINETE:'Gabinete do Prefeito'};
 function yearOf(date:string){return /^\d{4}-/.test(date)?date.slice(0,4):''}
 function compact(v?:string){return (v||'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ')}
@@ -47,8 +46,21 @@ function withAutoAudit(before:WorkOrder|undefined,next:WorkOrder,actor:string):W
 function ensureWorkforceOptions(c:Catalogs):Catalogs{
   const obsolete=new Set(['Equipe da Secretaria','Empresa Terceirizada']);
   const equipes=c.equipes.filter(x=>!obsolete.has(x.name)).map(x=>x.name==='Equipe Própria'?{...x,name:OWN_TEAM,detail:'Mão de obra própria do Departamento de Engenharia'}:x);
-  const defaults=[{id:91000,name:OWN_TEAM,active:true,detail:'Mão de obra própria do Departamento de Engenharia'},{id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'},{id:91002,name:INOVART_NAME,active:true,detail:'Empresa terceirizada • Manutenções da Saúde'}];
+  const defaults=[{id:91000,name:OWN_TEAM,active:true,detail:'Mão de obra própria do Departamento de Engenharia'},{id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'}];
   defaults.forEach(item=>{if(!equipes.some(x=>x.name===item.name))equipes.push(item)});return {...c,equipes};
+}
+function mergeLocalCustomCatalogs(saved:Catalogs,local:Catalogs):Catalogs{
+  const merge=(savedItems:Catalogs[keyof Catalogs],localItems:Catalogs[keyof Catalogs])=>{
+    const ids=new Set(savedItems.map(item=>item.id));
+    return [...savedItems,...localItems.filter(item=>item.id>=100000000000&& !ids.has(item.id))];
+  };
+  return {
+    secretarias:merge(saved.secretarias,local.secretarias),
+    unidades:merge(saved.unidades,local.unidades),
+    equipes:merge(saved.equipes,local.equipes),
+    tecnicos:merge(saved.tecnicos,local.tecnicos),
+    materiais:merge(saved.materiais,local.materiais),
+  };
 }
 
 export default function App(){
@@ -66,7 +78,7 @@ export default function App(){
       const [savedOrders,savedCatalogs,savedUsers,location]=await Promise.all([loadDesktopOrders<WorkOrder>(),loadDesktopSnapshot<Catalogs>(SNAPSHOT_CATALOGS),loadDesktopSnapshot<AppUser[]>(SNAPSHOT_USERS),getDesktopDatabaseLocation()]);
       if(cancelled)return;
       if(savedOrders){const raw=normalizeOrders(savedOrders);const normalized=prepareHistoricalOrders(raw);saveOrders(normalized);setOrders(normalized);if(raw.some((o,i)=>o.archived!==normalized[i]?.archived))await replaceDesktopOrders(normalized,currentUser()?.id);}
-      if(savedCatalogs){const prepared=ensureWorkforceOptions(savedCatalogs);saveCatalogs(prepared);setCatalogs(prepared)}else await saveDesktopSnapshot(SNAPSHOT_CATALOGS,catalogs);
+      if(savedCatalogs){const prepared=ensureWorkforceOptions(mergeLocalCustomCatalogs(savedCatalogs,catalogs));saveCatalogs(prepared);setCatalogs(prepared);if(JSON.stringify(prepared)!==JSON.stringify(savedCatalogs))await saveDesktopSnapshot(SNAPSHOT_CATALOGS,prepared)}else await saveDesktopSnapshot(SNAPSHOT_CATALOGS,catalogs);
       if(savedUsers){saveUsers(savedUsers);setUsers(savedUsers)}else await saveDesktopSnapshot(SNAPSHOT_USERS,users);
       setDatabaseLocation(location);setSession(currentUser());setHydrating(false);
     })();return()=>{cancelled=true};
