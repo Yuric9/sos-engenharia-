@@ -22,7 +22,6 @@ import { createDesktopBackup, deleteDesktopOrder, getDesktopDatabaseLocation, is
 type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived'|'backup'|'import'|'works';
 export const OWN_TEAM='Mão de obra própria — Departamento de Engenharia';
 export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
-export const INOVART_NAME='INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
 const SCOPE_LABELS:Record<UserScope,string>={EXECUTIVO:'Executivo',SAUDE:'Saúde',EDUCACAO:'Educação',GABINETE:'Gabinete do Prefeito'};
 function yearOf(date:string){return /^\d{4}-/.test(date)?date.slice(0,4):''}
 function compact(v?:string){return (v||'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ')}
@@ -47,8 +46,21 @@ function withAutoAudit(before:WorkOrder|undefined,next:WorkOrder,actor:string):W
 function ensureWorkforceOptions(c:Catalogs):Catalogs{
   const obsolete=new Set(['Equipe da Secretaria','Empresa Terceirizada']);
   const equipes=c.equipes.filter(x=>!obsolete.has(x.name)).map(x=>x.name==='Equipe Própria'?{...x,name:OWN_TEAM,detail:'Mão de obra própria do Departamento de Engenharia'}:x);
-  const defaults=[{id:91000,name:OWN_TEAM,active:true,detail:'Mão de obra própria do Departamento de Engenharia'},{id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'},{id:91002,name:INOVART_NAME,active:true,detail:'Empresa terceirizada • Manutenções da Saúde'}];
+  const defaults=[{id:91000,name:OWN_TEAM,active:true,detail:'Mão de obra própria do Departamento de Engenharia'},{id:91001,name:RP_NAME,active:true,detail:'Empresa terceirizada • Manutenções dos órgãos do Executivo'}];
   defaults.forEach(item=>{if(!equipes.some(x=>x.name===item.name))equipes.push(item)});return {...c,equipes};
+}
+function mergeLocalCustomCatalogs(saved:Catalogs,local:Catalogs):Catalogs{
+  const merge=(savedItems:Catalogs[keyof Catalogs],localItems:Catalogs[keyof Catalogs])=>{
+    const ids=new Set(savedItems.map(item=>item.id));
+    return [...savedItems,...localItems.filter(item=>item.id>=100000000000&& !ids.has(item.id))];
+  };
+  return {
+    secretarias:merge(saved.secretarias,local.secretarias),
+    unidades:merge(saved.unidades,local.unidades),
+    equipes:merge(saved.equipes,local.equipes),
+    tecnicos:merge(saved.tecnicos,local.tecnicos),
+    materiais:merge(saved.materiais,local.materiais),
+  };
 }
 
 export default function App(){
@@ -66,7 +78,7 @@ export default function App(){
       const [savedOrders,savedCatalogs,savedUsers,location]=await Promise.all([loadDesktopOrders<WorkOrder>(),loadDesktopSnapshot<Catalogs>(SNAPSHOT_CATALOGS),loadDesktopSnapshot<AppUser[]>(SNAPSHOT_USERS),getDesktopDatabaseLocation()]);
       if(cancelled)return;
       if(savedOrders){const raw=normalizeOrders(savedOrders);const normalized=prepareHistoricalOrders(raw);saveOrders(normalized);setOrders(normalized);if(raw.some((o,i)=>o.archived!==normalized[i]?.archived))await replaceDesktopOrders(normalized,currentUser()?.id);}
-      if(savedCatalogs){const prepared=ensureWorkforceOptions(savedCatalogs);saveCatalogs(prepared);setCatalogs(prepared)}else await saveDesktopSnapshot(SNAPSHOT_CATALOGS,catalogs);
+      if(savedCatalogs){const prepared=ensureWorkforceOptions(mergeLocalCustomCatalogs(savedCatalogs,catalogs));saveCatalogs(prepared);setCatalogs(prepared);if(JSON.stringify(prepared)!==JSON.stringify(savedCatalogs))await saveDesktopSnapshot(SNAPSHOT_CATALOGS,prepared)}else await saveDesktopSnapshot(SNAPSHOT_CATALOGS,catalogs);
       if(savedUsers){saveUsers(savedUsers);setUsers(savedUsers)}else await saveDesktopSnapshot(SNAPSHOT_USERS,users);
       setDatabaseLocation(location);setSession(currentUser());setHydrating(false);
     })();return()=>{cancelled=true};
@@ -126,19 +138,19 @@ export default function App(){
     if(!targets.length){alert('Nenhuma O.S. ativa válida foi encontrada para atualização.');return false}
     return persistOrderChange(previous=>previous.map(o=>{
       if(!requested.has(o.id)||!allowed.has(o.id)||o.archived)return o;
-      const next:WorkOrder={...o,status,attended:status==='ATENDIDA'||status==='CONCLUIDA',progress:status==='CONCLUIDA'?100:o.progress};
+      const next:WorkOrder={...o,status,attended:status==='ATENDIDA'||status==='CONCLUIDA',progress:status==='ATENDIDA'||status==='CONCLUIDA'?100:o.progress};
       return recalcOverdue(withAutoAudit(o,next,session.name));
     }));
   };
   const bulkCharge=async(ids:number[],context:string)=>{
     const requested=new Set(ids);
-    const allowed=new Set(accessibleOrders.filter(o=>!o.archived&&o.overdueDays>0&&!['ATENDIDA','CONCLUIDA','CANCELADA'].includes(o.status)).map(o=>o.id));
+    const allowed=new Set(accessibleOrders.filter(o=>!o.archived&&['ABERTA','EM_ANDAMENTO','PARALISADA','AGUARDANDO_MATERIAL'].includes(o.status)).map(o=>o.id));
     const targets=orders.filter(o=>requested.has(o.id)&&allowed.has(o.id));
-    if(!targets.length){alert('Nenhuma O.S. ativa em atraso foi encontrada para registrar a cobrança.');return false}
+    if(!targets.length){alert('Nenhuma O.S. aberta foi encontrada para registrar a cobrança.');return false}
     return persistOrderChange(previous=>previous.map(o=>{
       if(!requested.has(o.id)||!allowed.has(o.id))return o;
       const previousCharges=(o.history||[]).filter(h=>h.kind==='MENSAGEM'&&h.messageKind==='ATRASO').length;
-      const event=audit('MENSAGEM','Cobrança em lote — atraso',session.name,`Cobrança nº ${previousCharges+1} • ${context}`,'ATRASO');
+      const event=audit('MENSAGEM','Cobrança em lote — atualização',session.name,`Cobrança nº ${previousCharges+1} • ${context}`,'ATRASO');
       return {...o,history:[event,...(o.history||[])]};
     }));
   };
@@ -160,6 +172,6 @@ export default function App(){
   return <div className="institution-shell"><header className="municipal-header"><div className="department-title"><Building2 size={18}/><div><b>Departamento de Engenharia</b><span>S.O.S — Sistema de Ordens de Manutenção</span></div></div><div className="user-chip"><strong>{session.name}</strong><span>{isAdmin?'ADMIN • Todas as áreas':`OPERADOR • ${SCOPE_LABELS[sessionScope]}`}</span></div></header><div className="app-shell"><aside className="sidebar"><div className="side-heading"><strong>S.O.S</strong><span>Gestão de obras e manutenções</span></div><nav>
   <button className={view==='dashboard'&&!selected?'active':''} onClick={goDashboard}><LayoutDashboard size={18}/>Dashboard</button><button className={view==='new'?'active':''} onClick={()=>{setSelected(null);setView('new')}}><ClipboardPlus size={18}/>Nova O.S.</button><button className={view==='orders'?'active':''} onClick={()=>{setSelected(null);setView('orders')}}><FileText size={18}/>Ordens de Serviço</button><button className={view==='reports'?'active':''} onClick={()=>{setSelected(null);setView('reports')}}><BarChart3 size={18}/>Relatórios</button><button className={view==='archived'?'active':''} onClick={()=>{setSelected(null);setView('archived')}}><Archive size={18}/>Arquivadas</button><button className={view==='works'?'active':''} onClick={()=>{setSelected(null);setView('works')}}><HardHat size={18}/>Obras</button>{isAdmin&&<div style={{fontSize:10,fontWeight:800,letterSpacing:'.12em',color:'#b8d8ca',padding:'16px 12px 5px'}}>ADMINISTRATIVO</div>}{isAdmin&&<button className={view==='cadastros'?'active':''} onClick={()=>{setSelected(null);setView('cadastros')}}><Database size={18}/>Cadastros</button>}{isAdmin&&<button className={view==='import'?'active':''} onClick={()=>{setSelected(null);setView('import')}}><FileSpreadsheet size={18}/>Importar Planilha</button>}{isAdmin&&<button className={view==='usuarios'?'active':''} onClick={()=>{setSelected(null);setView('usuarios')}}><Users size={18}/>Usuários</button>}{isAdmin&&<button className={view==='backup'?'active':''} onClick={()=>{setSelected(null);setView('backup')}}><HardDrive size={18}/>Backup / Migração</button>}
  </nav><button className="logout" onClick={signout}><LogOut size={18}/>Sair</button></aside><main className="main">
- {view==='works'?<Works isAdmin={isAdmin}/>:view==='import'&&isAdmin?<ImportSpreadsheet orders={orders} onImport={importSpreadsheetOrders}/>:view==='backup'&&isAdmin?<DataBackup orders={orders} catalogs={catalogs} desktop={desktop} databaseLocation={databaseLocation} onImport={importBackup} onNativeBackup={createDesktopBackup}/>:view==='cadastros'&&isAdmin?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>:view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={persistUsers}/>:view==='reports'?<Reports orders={accessibleOrders} onOpen={openOrder} onBulkCharge={bulkCharge}/>:view==='archived'?<ArchivedOrders orders={accessibleOrders} onOpen={openOrder}/>:view==='orders'?<WorkOrders orders={accessibleOrders} onOpen={openOrder} onBulkStatus={bulkStatusChange}/>:view==='new'?<WorkOrderForm catalogs={catalogs} number={0} onCancel={goDashboard} onSave={saveForm}/>:view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={saveForm}/>:current?<WorkOrderDetail os={current} actor={session.name} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={updateOrder} onDelete={()=>remove(current.id)} canDelete={isAdmin}/>:<Dashboard orders={accessibleOrders} onOpen={openOrder} onNew={()=>setView('new')}/>} 
+ {view==='works'?<Works isAdmin={isAdmin}/>:view==='import'&&isAdmin?<ImportSpreadsheet orders={orders} onImport={importSpreadsheetOrders}/>:view==='backup'&&isAdmin?<DataBackup orders={orders} catalogs={catalogs} desktop={desktop} databaseLocation={databaseLocation} onImport={importBackup} onNativeBackup={createDesktopBackup}/>:view==='cadastros'&&isAdmin?<Cadastros catalogs={catalogs} onChange={persistCatalogs} isAdmin={isAdmin}/>:view==='usuarios'&&isAdmin?<Usuarios users={users} onChange={persistUsers}/>:view==='reports'?<Reports orders={accessibleOrders} onOpen={openOrder} onBulkCharge={bulkCharge}/>:view==='archived'?<ArchivedOrders orders={accessibleOrders} onOpen={openOrder}/>:view==='orders'?<WorkOrders orders={accessibleOrders} onOpen={openOrder} onBulkStatus={bulkStatusChange}/>:view==='new'?<WorkOrderForm catalogs={catalogs} number={0} onCancel={goDashboard} onSave={saveForm}/>:view==='edit'&&current?<WorkOrderForm catalogs={catalogs} initial={current} number={current.number} onCancel={()=>setView('dashboard')} onSave={saveForm}/>:current?<WorkOrderDetail os={current} actor={session.name} onBack={goDashboard} onEdit={()=>setView('edit')} onChange={updateOrder} onDelete={()=>remove(current.id)} canDelete={isAdmin}/>:<Dashboard orders={accessibleOrders} onOpen={openOrder} onNew={()=>setView('new')} onBulkStatus={bulkStatusChange}/>}
  </main></div><footer className="municipal-footer"><span>Prefeitura Municipal de Trindade • Departamento de Engenharia</span><span>{desktop?`Banco SQLite externo${databaseLocation?` • ${databaseLocation}`:''}`:'S.O.S — Sistema interno de Ordens de Manutenção'}</span></footer></div>
 }
