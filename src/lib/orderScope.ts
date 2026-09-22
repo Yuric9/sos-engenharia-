@@ -2,11 +2,11 @@ import { WorkOrder } from '../types';
 import { UserScope } from './auth';
 
 export function compactScopeValue(value?: string){
-  return (value || '').trim().toLocaleLowerCase('pt-BR').replace(/\\s+/g, ' ');
+  return (value || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ');
 }
 
 export function plainScopeValue(value?: string){
-  return compactScopeValue(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+  return compactScopeValue(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 export function orderScope(order: WorkOrder): UserScope{
