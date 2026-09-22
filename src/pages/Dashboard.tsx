@@ -1,19 +1,29 @@
 import { useMemo, useState } from 'react';
 import { Plus, Search, AlertTriangle, PauseCircle, CheckCircle2, Clock3, Archive, Paperclip, ChevronRight } from 'lucide-react';
 import { WorkOrder } from '../types';
+import { orderScope } from '../lib/orderScope';
 
 type DashboardFilter='TODAS'|'ABERTA'|'EM_ANDAMENTO'|'PARALISADAS'|'ATENDIDA'|'ATRASADAS'|'ARQUIVADAS';
+type DashboardScope='GERAL'|'SAUDE'|'EXECUTIVO'|'EDUCACAO';
+
+const DASHBOARD_SCOPE_STORAGE_KEY='sos.dashboard.scope';
+const DASHBOARD_SCOPE_LABELS:Record<DashboardScope,string>={GERAL:'Geral',SAUDE:'Saúde',EXECUTIVO:'Executivo / Administrativo',EDUCACAO:'Educação'};
+
+function loadDashboardScope():DashboardScope{
+ try{const saved=localStorage.getItem(DASHBOARD_SCOPE_STORAGE_KEY);if(saved==='GERAL'||saved==='SAUDE'||saved==='EXECUTIVO'||saved==='EDUCACAO')return saved}catch{}
+ return 'GERAL';
+}
 
 export default function Dashboard({orders,onOpen,onNew}:{orders:WorkOrder[];onOpen:(id:number)=>void;onNew:()=>void}){
  const [q,setQ]=useState('');
  const [filter,setFilter]=useState<DashboardFilter>('TODAS');
- const [monthFilter,setMonthFilter]=useState<number|null>(null);
- const now=new Date();
+ const [monthFilter,setMonthFilter]=useState<number|null>(null);\n const selectScope=(next:DashboardScope)=>{setScope(next);try{localStorage.setItem(DASHBOARD_SCOPE_STORAGE_KEY,next)}catch{};setFilter('TODAS');setMonthFilter(null);};
+ const now=new Date();\n const scopedOrders=useMemo(()=>scope==='GERAL'?orders:orders.filter(o=>orderScope(o)===(scope==='SAUDE'?'SAUDE':scope==='EDUCACAO'?'EDUCACAO':'EXECUTIVO')),[orders,scope]);
  const currentYear=now.getFullYear();
  const monthLabels=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
  const yearOf=(o:WorkOrder)=>o.openedAt?new Date(o.openedAt+'T12:00:00').getFullYear():0;
  const monthOf=(o:WorkOrder)=>{const d=new Date(o.openedAt+'T12:00:00');return Number.isFinite(d.getTime())?d.getMonth():-1};
- const currentYearOrders=orders.filter(o=>yearOf(o)===currentYear);
+ const currentYearOrders=scopedOrders.filter(o=>yearOf(o)===currentYear);
  const operational=currentYearOrders.filter(o=>!o.archived);
  const monthScopedOrders=monthFilter===null?currentYearOrders:currentYearOrders.filter(o=>monthOf(o)===monthFilter);
  const monthScopedOperational=monthScopedOrders.filter(o=>!o.archived);
@@ -39,8 +49,8 @@ export default function Dashboard({orders,onOpen,onNew}:{orders:WorkOrder[];onOp
  const selectCard=(cardFilter:DashboardFilter)=>setFilter(current=>current===cardFilter?'TODAS':cardFilter);
  const periodLabel=monthFilter===null?`${currentYear}`:`${monthLabels[monthFilter]} ${currentYear}`;
  return <>
- <header className="topbar"><div><h1>Dashboard</h1><p>Visão operacional de {currentYear}. Anos anteriores permanecem no histórico arquivado.</p></div><button className="primary" onClick={onNew}><Plus size={18}/>Nova O.S.</button></header>
- <section className="cards">{cards.map(([label,value,Icon,cardFilter])=><button type="button" className={`metric dashboard-metric${filter===cardFilter?' selected':''}`} key={label} onClick={()=>selectCard(cardFilter)} title={`Mostrar ${label.toLowerCase()} de ${periodLabel}`} style={{textAlign:'left',cursor:'pointer'}}><div><span>{label}</span><strong>{value}</strong><small>{monthFilter===null?'Ano inteiro':periodLabel}</small></div><Icon size={22}/></button>)}</section>
+ <header className="topbar"><div><h1>Dashboard — {DASHBOARD_SCOPE_LABELS[scope]}</h1><p>Visão operacional de {currentYear} • contexto: {DASHBOARD_SCOPE_LABELS[scope]}. Anos anteriores permanecem no histórico arquivado.</p></div><button className="primary" onClick={onNew}><Plus size={18}/>Nova O.S.</button></header>
+ <nav aria-label="Contexto do dashboard" className="dashboard-scope-tabs" style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>{(['GERAL','SAUDE','EXECUTIVO','EDUCACAO'] as DashboardScope[]).map(tab=><button type="button" key={tab} onClick={()=>selectScope(tab)} className={scope===tab?'selected':''} aria-pressed={scope===tab} style={{padding:'9px 14px',borderRadius:8,border:'1px solid currentColor',fontWeight:700,cursor:'pointer'}}>{DASHBOARD_SCOPE_LABELS[tab]}</button>)}</nav>\n <section className="cards">{cards.map(([label,value,Icon,cardFilter])=><button type="button" className={`metric dashboard-metric${filter===cardFilter?' selected':''}`} key={label} onClick={()=>selectCard(cardFilter)} title={`Mostrar ${label.toLowerCase()} de ${periodLabel}`} style={{textAlign:'left',cursor:'pointer'}}><div><span>{label}</span><strong>{value}</strong><small>{monthFilter===null?'Ano inteiro':periodLabel}</small></div><Icon size={22}/></button>)}</section>
  <section className="chart-card"><div><h2>O.S. por mês</h2><p>{monthFilter===null?`Somente O.S. operacionais de ${currentYear} • arquivadas não entram no gráfico`:`Filtro ativo: ${periodLabel} • os cards e a tabela refletem este mês`}</p></div><div className="bars">{months.map((v,i)=><button type="button" className={`bar-wrap${monthFilter===i?' selected':''}`} key={i} onClick={()=>selectMonth(i,v)} title={v>0?`Mostrar ${v} O.S. de ${monthLabels[i]} de ${currentYear}`:`Sem O.S. em ${monthLabels[i]} de ${currentYear}`} style={{background:'transparent',border:0,cursor:v>0?'pointer':'default',padding:0}}>{v>0&&<strong style={{fontSize:12}}>{v}</strong>}<div className="bar" style={{height:v>0?`${Math.max(8,(v/max)*100)}%`:'0%'}}/><small>{monthLabels[i]}</small></button>)}</div></section>
  <section className="table-card"><div className="table-toolbar"><div><h2>{`Ordens de Serviço — ${periodLabel}`}</h2><p>{monthFilter===null?'Sem mês selecionado: cards e filtros consideram o ano inteiro.':'Mês selecionado: cards e filtros consideram somente este mês.'}</p></div><div className="search"><Search size={17}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Número, origem, secretaria, unidade..."/></div></div>
  <div className="filters">{([['TODAS','Todas ativas'],['ABERTA','Abertas'],['EM_ANDAMENTO','Em andamento'],['PARALISADAS','Paralisadas'],['ATENDIDA','Atendidas'],['ATRASADAS','Atrasadas'],['ARQUIVADAS','Arquivadas']] as [DashboardFilter,string][]).map(([v,l])=><button key={v} className={filter===v?'selected':''} onClick={()=>setFilter(v)}>{l}</button>)}{monthFilter!==null&&<button className="selected" onClick={()=>setMonthFilter(null)}>Limpar mês: {monthLabels[monthFilter]}</button>}</div>
