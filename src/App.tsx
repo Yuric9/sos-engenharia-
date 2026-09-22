@@ -17,6 +17,7 @@ import { AuditEvent, AuditKind, StatusOS, WorkOrder } from './types';
 import { loadOrders, normalizeOrders, recalcOverdue, saveOrders } from './lib/storage';
 import { AppUser, UserScope, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
 import { Catalogs, loadCatalogs, saveCatalogs } from './lib/catalogs';
+import { compactScopeValue, orderScope } from './lib/orderScope';
 import { createDesktopBackup, deleteDesktopOrder, getDesktopDatabaseLocation, isDesktopMode, loadDesktopOrders, loadDesktopSnapshot, replaceDesktopOrders, saveDesktopOrder, saveDesktopSnapshot, SNAPSHOT_CATALOGS, SNAPSHOT_USERS } from './lib/nativeDb';
 
 type View='dashboard'|'orders'|'new'|'edit'|'cadastros'|'usuarios'|'reports'|'archived'|'backup'|'import'|'works';
@@ -25,9 +26,7 @@ export const RP_NAME='RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
 export const INOVART_NAME='INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
 const SCOPE_LABELS:Record<UserScope,string>={EXECUTIVO:'Executivo',SAUDE:'Saúde',EDUCACAO:'Educação',GABINETE:'Gabinete do Prefeito'};
 function yearOf(date:string){return /^\d{4}-/.test(date)?date.slice(0,4):''}
-function compact(v?:string){return (v||'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ')}
-function plain(v?:string){return compact(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
-function orderScope(o:WorkOrder):UserScope{const source=plain(o.importOrigin||o.secretaria);if(source.includes('saude'))return 'SAUDE';if(source.includes('educa'))return 'EDUCACAO';if(source.includes('gabinete'))return 'GABINETE';return 'EXECUTIVO'}
+function compact(v?:string){return compactScopeValue(v)}
 function prepareHistoricalOrders(items:WorkOrder[]){const currentYear=new Date().getFullYear();return items.map(o=>{const y=Number(yearOf(o.openedAt));return y>0&&y<currentYear&&!o.archived?{...o,archived:true}:o})}
 function audit(kind:AuditKind,label:string,actor:string,detail?:string,messageKind?:string):AuditEvent{return {id:crypto.randomUUID(),at:new Date().toISOString(),kind,label,detail,actor,messageKind}}
 function comparable(o:WorkOrder){const {history,...rest}=o;return rest}
