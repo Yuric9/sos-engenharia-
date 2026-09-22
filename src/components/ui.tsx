@@ -3,8 +3,8 @@ import { Search } from 'lucide-react';
 
 export type StatusTone='danger'|'warning'|'success'|'info'|'neutral';
 
-export function Button({variant='secondary',className='',children,...props}:{variant?:'primary'|'secondary'|'danger'|'ghost';className?:string;children:ReactNode}&ButtonHTMLAttributes<HTMLButtonElement>){
-  return <button className={`ui-btn ui-btn--${variant} ${className}`.trim()} {...props}>{children}</button>;
+export function Button({variant='secondary',className='',children,onClick,...props}:{variant?:'primary'|'secondary'|'danger'|'ghost';className?:string;children:ReactNode}&ButtonHTMLAttributes<HTMLButtonElement>){
+  return <button onClick={onClick} className={`ui-btn ui-btn--${variant} ${className}`.trim()} {...props}>{children}</button>;
 }
 
 export function SegmentedTabs<T extends string>({value,options,onChange,labels}:{value:T;options:readonly T[];onChange:(value:T)=>void;labels:Record<T,string>}){
@@ -13,8 +13,8 @@ export function SegmentedTabs<T extends string>({value,options,onChange,labels}:
   </div>;
 }
 
-export function FilterPill({active=false,children,...props}:{active?:boolean;children:ReactNode}&ButtonHTMLAttributes<HTMLButtonElement>){
-  return <button type="button" className={`ui-filter-pill ${active?'is-active':''}`} {...props}>{children}</button>;
+export function FilterPill({active=false,children,onClick,...props}:{active?:boolean;children:ReactNode}&ButtonHTMLAttributes<HTMLButtonElement>){
+  return <button type="button" onClick={onClick} className={`ui-filter-pill ${active?'is-active':''}`} {...props}>{children}</button>;
 }
 
 export function StatusBadge({tone='neutral',children}:{tone?:StatusTone;children:ReactNode}){
