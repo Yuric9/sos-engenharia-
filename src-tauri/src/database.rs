@@ -3,11 +3,13 @@ use rusqlite::{params, Connection, OptionalExtension, Result, Transaction};
 use serde_json::Value;
 use std::{fs, path::{Component, Path, PathBuf}};
 use crate::portable;
+use crate::registry;
 use crate::session::{self, Session};
 
 const MAX_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
 pub const SNAPSHOT_USERS: &str = "users";
-const SNAPSHOT_KEYS: &[&str] = &[SNAPSHOT_USERS, "catalogs", "works"];
+pub const SNAPSHOT_CATALOGS: &str = "catalogs";
+const SNAPSHOT_KEYS: &[&str] = &[SNAPSHOT_USERS, SNAPSHOT_CATALOGS, "works"];
 
 fn db_path() -> PathBuf { portable::data_root().join("data").join("sos.db") }
 fn attachments_root() -> PathBuf { portable::data_root().join("anexos") }
@@ -142,14 +144,35 @@ pub fn initialize()->Result<()> {
     let mut conn=open()?;
     conn.execute_batch(include_str!("../migrations/001_initial.sql"))?;
     conn.execute_batch(include_str!("../migrations/002_operational_hardening.sql"))?;
+    conn.execute_batch(include_str!("../migrations/003_registry_tables.sql"))?;
     migrate_legacy_orders(&mut conn)?;
     archive_previous_years(&mut conn)?;
+    let needs_registry=!registry::is_active(&conn).unwrap_or(true);
     drop(conn);
+    if needs_registry{
+        // Cópia completa antes de mover usuários e cadastros para as tabelas novas.
+        if let Err(e)=create_backup("antes-tabelas"){eprintln!("Backup antes da migração falhou: {e}");}
+        let mut conn=open()?;
+        // Se a migração falhar, o sistema continua usando o snapshot JSON como antes.
+        if let Err(e)=registry::migrate_from_snapshots(&mut conn){eprintln!("Migração de usuários/cadastros adiada: {e}");}
+    }
     let _=backup_daily();
     Ok(())
 }
 
-pub fn load_snapshot(key:&str)->Result<Option<String>> { let conn=open()?; conn.query_row("SELECT value_json FROM app_snapshots WHERE key=?1",params![key],|row|row.get(0)).optional() }
+/// Usuários e cadastros vêm das tabelas próprias (depois da migração); obras continuam
+/// no snapshot JSON. O formato devolvido para a tela é o mesmo nos dois casos.
+pub fn load_snapshot(key:&str)->std::result::Result<Option<String>,String>{
+    let conn=open().map_err(|e|e.to_string())?;
+    if registry::is_active(&conn)?{
+        if key==SNAPSHOT_USERS{let users=registry::read_users(&conn)?;return Ok((!users.is_empty()).then(||Value::Array(users).to_string()))}
+        if key==SNAPSHOT_CATALOGS{
+            let count:i64=conn.query_row("SELECT COUNT(*) FROM catalog_items",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+            return if count==0{Ok(None)}else{Ok(Some(registry::read_catalogs(&conn)?.to_string()))};
+        }
+    }
+    conn.query_row("SELECT value_json FROM app_snapshots WHERE key=?1",params![key],|row|row.get(0)).optional().map_err(|e|e.to_string())
+}
 /// O.S. de anos anteriores ficam arquivadas (mesma regra do frontend). Feito aqui na
 /// inicialização porque, antes do login, o frontend não tem permissão para regravar O.S.
 fn archive_previous_years(conn:&mut Connection)->Result<()> {
@@ -176,12 +199,31 @@ fn archive_previous_years(conn:&mut Connection)->Result<()> {
 /// cada chave (primeiro acesso, quando ainda não existe ninguém logado).
 pub fn save_snapshot_checked(key:&str,value_json:&str)->std::result::Result<(),String>{
     if !SNAPSHOT_KEYS.contains(&key){return Err("Tipo de dado desconhecido".into())}
-    let exists=load_snapshot(key).map_err(|e|e.to_string())?.is_some_and(|raw|raw.trim()!="[]");
-    if exists{session::require_admin()?;}
-    save_snapshot(key,value_json).map_err(|e|e.to_string())
+    let exists=load_snapshot(key)?.is_some_and(|raw|raw.trim()!="[]");
+    let actor=if exists{Some(session::require_admin()?.user_id)}else{session::current().map(|s|s.user_id)};
+    save_snapshot(key,value_json,actor,true)
 }
 
-pub fn save_snapshot(key:&str,value_json:&str)->Result<()> { let conn=open()?; conn.execute("INSERT INTO app_snapshots(key,value_json,updated_at) VALUES(?1,?2,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=CURRENT_TIMESTAMP",params![key,value_json])?; Ok(()) }
+/// `with_audit` fica desligado só para as tentativas de login, que têm auditoria própria.
+pub fn save_snapshot(key:&str,value_json:&str,actor:Option<i64>,with_audit:bool)->std::result::Result<(),String>{
+    let mut conn=open().map_err(|e|e.to_string())?;
+    if registry::is_active(&conn)?&&(key==SNAPSHOT_USERS||key==SNAPSHOT_CATALOGS){
+        let tx=conn.transaction().map_err(|e|e.to_string())?;
+        if key==SNAPSHOT_USERS{registry::write_users(&tx,value_json,actor,with_audit)?}else{registry::write_catalogs(&tx,value_json,actor,with_audit)?}
+        return tx.commit().map_err(|e|e.to_string());
+    }
+    save_snapshot_json(&conn,key,value_json).map_err(|e|e.to_string())
+}
+
+/// Registra entrada, falha e bloqueio de login na auditoria.
+pub fn audit_auth(user_id:Option<i64>,action:&str,login:&str)->std::result::Result<(),String>{
+    let conn=open().map_err(|e|e.to_string())?;
+    conn.execute("INSERT INTO audit_logs(user_id,action,entity_type,entity_id,after_json,machine) VALUES(?1,?2,'AUTH',?1,?3,?4)",
+        params![user_id,action,serde_json::json!({"login":login}).to_string(),std::env::var("COMPUTERNAME").unwrap_or_default()]).map_err(|e|e.to_string())?;
+    Ok(())
+}
+
+fn save_snapshot_json(conn:&Connection,key:&str,value_json:&str)->Result<()> { conn.execute("INSERT INTO app_snapshots(key,value_json,updated_at) VALUES(?1,?2,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=CURRENT_TIMESTAMP",params![key,value_json])?; Ok(()) }
 
 pub fn load_orders()->Result<Vec<String>>{
     let conn=open()?; let mut stmt=conn.prepare("SELECT order_json FROM work_order_records ORDER BY id DESC")?;

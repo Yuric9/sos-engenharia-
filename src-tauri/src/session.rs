@@ -217,13 +217,27 @@ fn decode_hex(hex: &str) -> Option<Vec<u8>> {
 
 /// Faz o login usando os usuários gravados no SQLite e abre a sessão do backend.
 pub fn login(login: &str, password: &str) -> Result<LoginResult, String> {
-    let raw = crate::database::load_snapshot(crate::database::SNAPSHOT_USERS).map_err(|e| e.to_string())?;
+    use crate::database::{audit_auth, load_snapshot, save_snapshot, SNAPSHOT_USERS};
+    let raw = load_snapshot(SNAPSHOT_USERS)?;
     let mut users: Vec<Value> = raw.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or_default();
     let (result, session, changed) = evaluate_login(&mut users, login, password, Utc::now());
     if changed {
         let json = serde_json::to_string(&users).map_err(|e| e.to_string())?;
-        crate::database::save_snapshot(crate::database::SNAPSHOT_USERS, &json).map_err(|e| e.to_string())?;
+        save_snapshot(SNAPSHOT_USERS, &json, None, false)?;
     }
+    let user_id = session.map(|s| s.user_id).or_else(|| {
+        let wanted = login.trim().to_lowercase();
+        users
+            .iter()
+            .find(|u| u.get("login").and_then(Value::as_str).map(str::to_lowercase) == Some(wanted.clone()))
+            .and_then(|u| u.get("id").and_then(Value::as_i64))
+    });
+    let action = match result.reason {
+        None => "LOGIN_SUCCESS",
+        Some("LOCKED") => "LOGIN_BLOCKED",
+        Some(_) => "LOGIN_FAIL",
+    };
+    audit_auth(user_id, action, login.trim())?;
     set_current(session);
     Ok(result)
 }

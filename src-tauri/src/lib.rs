@@ -1,6 +1,7 @@
 mod backup_verify;
 mod database;
 mod portable;
+mod registry;
 mod session;
 
 use std::path::{Component,Path};
@@ -10,7 +11,7 @@ fn app_mode() -> String { if portable::is_portable(){"portable".into()}else{"ins
 #[tauri::command]
 fn database_location() -> String { database::database_location() }
 #[tauri::command]
-fn load_snapshot(key:String) -> Result<Option<String>,String> { database::load_snapshot(&key).map_err(|e|e.to_string()) }
+fn load_snapshot(key:String) -> Result<Option<String>,String> { database::load_snapshot(&key) }
 #[tauri::command]
 fn save_snapshot(key:String,value_json:String) -> Result<(),String> { database::save_snapshot_checked(&key,&value_json) }
 #[tauri::command]
