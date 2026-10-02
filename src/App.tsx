@@ -36,6 +36,7 @@ import { compactScopeValue, orderScope } from './lib/orderScope';
 import {
   createDesktopBackup,
   deleteDesktopOrder,
+  desktopSessionUserId,
   getDesktopDatabaseLocation,
   isDesktopMode,
   loadDesktopOrders,
@@ -220,8 +221,6 @@ export default function App() {
         const normalized = prepareHistoricalOrders(raw);
         saveOrders(normalized);
         setOrders(normalized);
-        if (raw.some((o, i) => o.archived !== normalized[i]?.archived))
-          await replaceDesktopOrders(normalized, currentUser()?.id);
       }
       if (savedCatalogs) {
         const prepared = ensureWorkforceOptions(savedCatalogs);
@@ -233,6 +232,9 @@ export default function App() {
         setUsers(savedUsers);
       } else await saveDesktopSnapshot(SNAPSHOT_USERS, users);
       setDatabaseLocation(location);
+      // A sessão do Rust some ao fechar o programa; sem ela as gravações seriam recusadas.
+      const backendUserId = await desktopSessionUserId();
+      if (currentUser() && backendUserId !== currentUser()?.id) logout();
       setSession(currentUser());
       setHydrating(false);
     })();
@@ -279,7 +281,7 @@ export default function App() {
       for (const item of next) {
         const before = oldById.get(item.id);
         if (!before || JSON.stringify(before) !== JSON.stringify(item)) {
-          if (!(await saveDesktopOrder(item, session.id))) {
+          if (!(await saveDesktopOrder(item))) {
             alert(
               'Não foi possível salvar a O.S. no banco SQLite do HD externo. Confira se o HD continua conectado.'
             );
@@ -289,7 +291,7 @@ export default function App() {
       }
       for (const item of orders) {
         if (!nextById.has(item.id)) {
-          if (!(await deleteDesktopOrder(item.id, session.id))) {
+          if (!(await deleteDesktopOrder(item.id))) {
             alert('Não foi possível excluir a O.S. do banco SQLite.');
             return false;
           }
@@ -340,7 +342,7 @@ export default function App() {
     const nextCatalogs = ensureWorkforceOptions(backup.catalogs);
     if (desktop) {
       if (
-        !(await replaceDesktopOrders(nextOrders, session.id)) ||
+        !(await replaceDesktopOrders(nextOrders)) ||
         !(await saveDesktopSnapshot(SNAPSHOT_CATALOGS, nextCatalogs))
       ) {
         alert('A importação não foi concluída no banco do HD externo.');
@@ -385,7 +387,7 @@ export default function App() {
       recalcOverdue
     );
     if (desktop) {
-      if (!(await replaceDesktopOrders(merged, session.id))) {
+      if (!(await replaceDesktopOrders(merged))) {
         alert('A planilha não pôde ser gravada no banco do HD externo.');
         return false;
       }

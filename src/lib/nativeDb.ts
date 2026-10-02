@@ -43,10 +43,10 @@ export async function loadDesktopOrders<T>(): Promise<T[] | null> {
   }
 }
 
-export async function saveDesktopOrder<T>(order: T, userId?: number): Promise<boolean> {
+export async function saveDesktopOrder<T>(order: T): Promise<boolean> {
   if (!isDesktopMode()) return true;
   try {
-    await invoke<void>('save_order', { orderJson: JSON.stringify(order), userId: userId ?? null });
+    await invoke<void>('save_order', { orderJson: JSON.stringify(order) });
     return true;
   } catch (error) {
     console.error('Falha ao salvar O.S. no SQLite.', error);
@@ -54,10 +54,10 @@ export async function saveDesktopOrder<T>(order: T, userId?: number): Promise<bo
   }
 }
 
-export async function deleteDesktopOrder(id: number, userId?: number): Promise<boolean> {
+export async function deleteDesktopOrder(id: number): Promise<boolean> {
   if (!isDesktopMode()) return true;
   try {
-    await invoke<void>('delete_order', { id, userId: userId ?? null });
+    await invoke<void>('delete_order', { id });
     return true;
   } catch (error) {
     console.error('Falha ao excluir O.S. do banco SQLite.', error);
@@ -65,13 +65,10 @@ export async function deleteDesktopOrder(id: number, userId?: number): Promise<b
   }
 }
 
-export async function replaceDesktopOrders<T>(orders: T[], userId?: number): Promise<boolean> {
+export async function replaceDesktopOrders<T>(orders: T[]): Promise<boolean> {
   if (!isDesktopMode()) return true;
   try {
-    await invoke<void>('replace_orders', {
-      orderJsons: orders.map((x) => JSON.stringify(x)),
-      userId: userId ?? null,
-    });
+    await invoke<void>('replace_orders', { orderJsons: orders.map((x) => JSON.stringify(x)) });
     return true;
   } catch (error) {
     console.error('Falha ao importar O.S. no SQLite.', error);
@@ -160,6 +157,32 @@ export async function createDesktopBackup(): Promise<string | null> {
     return await invoke<string>('backup_now');
   } catch (error) {
     console.error('Falha ao criar backup do SQLite.', error);
+    return null;
+  }
+}
+
+export type DesktopLoginResult<U> = { user: U | null; reason: 'LOCKED' | 'INVALID' | null };
+
+/** Login feito no Rust: ele confere a senha e abre a sessão usada nas permissões. */
+export async function desktopLogin<U>(login: string, password: string) {
+  return invoke<DesktopLoginResult<U>>('auth_login', { login, password });
+}
+
+export async function desktopLogout(): Promise<void> {
+  if (!isDesktopMode()) return;
+  try {
+    await invoke<void>('auth_logout');
+  } catch (error) {
+    console.error('Falha ao encerrar a sessão no backend.', error);
+  }
+}
+
+/** Id do usuário com sessão aberta no Rust (some ao fechar o programa). */
+export async function desktopSessionUserId(): Promise<number | null> {
+  if (!isDesktopMode()) return null;
+  try {
+    return await invoke<number | null>('auth_session');
+  } catch {
     return null;
   }
 }

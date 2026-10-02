@@ -27,6 +27,7 @@ npm test             # testes automatizados
 npm run typecheck    # checagem de tipos
 npm run audit        # auditoria estática de UI e segurança
 npm run build        # build de produção
+cargo test --manifest-path src-tauri/Cargo.toml  # testes do backend Rust
 ```
 
 ## Armazenamento
@@ -53,6 +54,9 @@ Backup automático diário ao iniciar e backup manual na tela **Backup / Migraç
 - Senhas com PBKDF2-SHA256 (210.000 iterações) e salt aleatório.
 - Bloqueio de 15 minutos após 5 tentativas incorretas.
 - O backup JSON não inclui usuários, hashes ou senhas.
+- No desktop, o login e as permissões são verificados no Rust (`src-tauri/src/session.rs`): só o
+  Admin exclui O.S., importa, faz backup e altera usuários, cadastros e obras; operadores só gravam
+  O.S. da própria área. Ao fechar o programa a sessão termina e é preciso entrar de novo.
 
 ## Importante
 
@@ -62,8 +66,7 @@ remova o HD com o S.O.S aberto.
 ## Próximos passos
 
 1. Migrar cadastros e usuários do snapshot JSON para tabelas próprias no SQLite.
-2. Validar perfil e permissões também no Rust, e não só na interface.
-3. Ampliar a auditoria para usuários, cadastros e autenticação.
-4. Ampliar os testes (importação de planilha e regras de O.S.).
+2. Ampliar a auditoria para usuários, cadastros e autenticação.
+3. Ampliar os testes (importação de planilha e regras de O.S.).
 
 As regras de negócio estão documentadas em [`docs/LOGICA-SISTEMA.md`](docs/LOGICA-SISTEMA.md).

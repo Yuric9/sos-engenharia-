@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck frontend
         run: npm run typecheck
 
+      - name: Rust tests
+        run: cargo test --release --manifest-path src-tauri/Cargo.toml
+
       - name: Build production executable with Tauri
         run: npm run tauri build -- --no-bundle
 
