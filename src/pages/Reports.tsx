@@ -2,75 +2,685 @@ import { useMemo, useState } from 'react';
 import { BarChart3, Search, Printer, Clock3, MessageSquareText, X, Copy } from 'lucide-react';
 import { WorkOrder } from '../types';
 
-const monthLabels=['Todos','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-const monthLong=['Ano inteiro','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const dayMs=86400000;
-type Drill={type:'TOTAL'|'ATTENDED'|'PENDING'|'LATE'|'MESSAGES'|'CHARGES'|'SECRETARIA'|'UNIDADE'|'EQUIPE'|'SERVICO';value?:string;label:string}|null;
-function group(items:WorkOrder[],pick:(o:WorkOrder)=>string){const map=new Map<string,number>();for(const o of items){const key=(pick(o)||'Não informado').trim()||'Não informado';map.set(key,(map.get(key)||0)+1)}return [...map.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR')).slice(0,10)}
-function fmt(date:string){return new Date(date+'T12:00:00').toLocaleDateString('pt-BR')}
+const monthLabels = [
+  'Todos',
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
+const monthLong = [
+  'Ano inteiro',
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+const dayMs = 86400000;
+type Drill = {
+  type:
+    | 'TOTAL'
+    | 'ATTENDED'
+    | 'PENDING'
+    | 'LATE'
+    | 'MESSAGES'
+    | 'CHARGES'
+    | 'SECRETARIA'
+    | 'UNIDADE'
+    | 'EQUIPE'
+    | 'SERVICO';
+  value?: string;
+  label: string;
+} | null;
+function group(items: WorkOrder[], pick: (o: WorkOrder) => string) {
+  const map = new Map<string, number>();
+  for (const o of items) {
+    const key = (pick(o) || 'Não informado').trim() || 'Não informado';
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return [...map.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+    .slice(0, 10);
+}
+function fmt(date: string) {
+  return new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+}
 
-export default function Reports({orders,onOpen,onBulkCharge}:{orders:WorkOrder[];onOpen:(id:number)=>void;onBulkCharge:(ids:number[],context:string)=>Promise<boolean>|boolean}){
-  const years=useMemo(()=>{const values=orders.flatMap(o=>{if(!o.openedAt)return [];const d=new Date(o.openedAt+'T12:00:00');return Number.isFinite(d.getTime())?[d.getFullYear()]:[]});const unique=[...new Set(values)].sort((a,b)=>b-a);return unique.length?unique:[new Date().getFullYear()]},[orders]);
-  const [year,setYear]=useState<number>(()=>years.includes(new Date().getFullYear())?new Date().getFullYear():years[0]);
-  const [month,setMonth]=useState(0);const [status,setStatus]=useState('TODOS');const [q,setQ]=useState('');const [drill,setDrill]=useState<Drill>(null);
-  const [chargeTeam,setChargeTeam]=useState('TODAS');const [chargeOpen,setChargeOpen]=useState(false);const [chargeDraft,setChargeDraft]=useState('');
+export default function Reports({
+  orders,
+  onOpen,
+  onBulkCharge,
+}: {
+  orders: WorkOrder[];
+  onOpen: (id: number) => void;
+  onBulkCharge: (ids: number[], context: string) => Promise<boolean> | boolean;
+}) {
+  const years = useMemo(() => {
+    const values = orders.flatMap((o) => {
+      if (!o.openedAt) return [];
+      const d = new Date(o.openedAt + 'T12:00:00');
+      return Number.isFinite(d.getTime()) ? [d.getFullYear()] : [];
+    });
+    const unique = [...new Set(values)].sort((a, b) => b - a);
+    return unique.length ? unique : [new Date().getFullYear()];
+  }, [orders]);
+  const [year, setYear] = useState<number>(() =>
+    years.includes(new Date().getFullYear()) ? new Date().getFullYear() : years[0]
+  );
+  const [month, setMonth] = useState(0);
+  const [status, setStatus] = useState('TODOS');
+  const [q, setQ] = useState('');
+  const [drill, setDrill] = useState<Drill>(null);
+  const [chargeTeam, setChargeTeam] = useState('TODAS');
+  const [chargeOpen, setChargeOpen] = useState(false);
+  const [chargeDraft, setChargeDraft] = useState('');
 
-  const matchesPeriod=(o:WorkOrder)=>{if(!o.openedAt)return false;const d=new Date(o.openedAt+'T12:00:00');return Number.isFinite(d.getTime())&&d.getFullYear()===year&&(month===0||d.getMonth()===month-1)};
-  const matchesSearch=(o:WorkOrder)=>`${o.number} ${o.secretaria} ${o.unidade} ${o.serviceType} ${o.description} ${o.team}`.toLowerCase().includes(q.trim().toLowerCase());
+  const matchesPeriod = (o: WorkOrder) => {
+    if (!o.openedAt) return false;
+    const d = new Date(o.openedAt + 'T12:00:00');
+    return (
+      Number.isFinite(d.getTime()) &&
+      d.getFullYear() === year &&
+      (month === 0 || d.getMonth() === month - 1)
+    );
+  };
+  const matchesSearch = (o: WorkOrder) =>
+    `${o.number} ${o.secretaria} ${o.unidade} ${o.serviceType} ${o.description} ${o.team}`
+      .toLowerCase()
+      .includes(q.trim().toLowerCase());
 
-  const filtered=useMemo(()=>orders.filter(o=>{if(!matchesPeriod(o))return false;if(status==='ARQUIVADAS'&&!o.archived)return false;if(status!=='TODOS'&&status!=='ARQUIVADAS'&&o.status!==status)return false;return matchesSearch(o)}),[orders,year,month,status,q]);
-  const active=filtered.filter(o=>!o.archived);const attended=filtered.filter(o=>o.status==='ATENDIDA'||o.status==='CONCLUIDA').length;const pending=active.filter(o=>['ABERTA','EM_ANDAMENTO','PARALISADA','AGUARDANDO_MATERIAL'].includes(o.status)).length;const late=active.filter(o=>o.overdueDays>0).length;
-  const serviceRate=filtered.length?Math.round((attended/filtered.length)*100):0;
-  const messageCount=filtered.reduce((s,o)=>s+(o.history||[]).filter(h=>h.kind==='MENSAGEM').length,0);
-  const chargeCount=filtered.reduce((s,o)=>s+(o.history||[]).filter(h=>h.kind==='MENSAGEM'&&h.messageKind==='ATRASO').length,0);
-  const plannedDays=filtered.map(o=>{const a=new Date(o.openedAt+'T12:00:00').getTime(),b=new Date(o.deadline+'T12:00:00').getTime();return Number.isFinite(a)&&Number.isFinite(b)&&b>=a?Math.round((b-a)/dayMs):null}).filter((v):v is number=>v!==null);
-  const avgPlanned=plannedDays.length?Math.round(plannedDays.reduce((a,b)=>a+b,0)/plannedDays.length):0;
-  const bySecretary=group(filtered,o=>o.secretaria),byUnit=group(filtered,o=>o.unidade),byTeam=group(filtered,o=>o.team),byService=group(filtered,o=>o.serviceType);
-  const maxGroup=Math.max(1,...bySecretary.map(x=>x[1]),...byUnit.map(x=>x[1]),...byTeam.map(x=>x[1]),...byService.map(x=>x[1]));
+  const filtered = useMemo(
+    () =>
+      orders.filter((o) => {
+        if (!matchesPeriod(o)) return false;
+        if (status === 'ARQUIVADAS' && !o.archived) return false;
+        if (status !== 'TODOS' && status !== 'ARQUIVADAS' && o.status !== status) return false;
+        return matchesSearch(o);
+      }),
+    [orders, year, month, status, q]
+  );
+  const active = filtered.filter((o) => !o.archived);
+  const attended = filtered.filter(
+    (o) => o.status === 'ATENDIDA' || o.status === 'CONCLUIDA'
+  ).length;
+  const pending = active.filter((o) =>
+    ['ABERTA', 'EM_ANDAMENTO', 'PARALISADA', 'AGUARDANDO_MATERIAL'].includes(o.status)
+  ).length;
+  const late = active.filter((o) => o.overdueDays > 0).length;
+  const serviceRate = filtered.length ? Math.round((attended / filtered.length) * 100) : 0;
+  const messageCount = filtered.reduce(
+    (s, o) => s + (o.history || []).filter((h) => h.kind === 'MENSAGEM').length,
+    0
+  );
+  const chargeCount = filtered.reduce(
+    (s, o) =>
+      s +
+      (o.history || []).filter((h) => h.kind === 'MENSAGEM' && h.messageKind === 'ATRASO').length,
+    0
+  );
+  const plannedDays = filtered
+    .map((o) => {
+      const a = new Date(o.openedAt + 'T12:00:00').getTime(),
+        b = new Date(o.deadline + 'T12:00:00').getTime();
+      return Number.isFinite(a) && Number.isFinite(b) && b >= a
+        ? Math.round((b - a) / dayMs)
+        : null;
+    })
+    .filter((v): v is number => v !== null);
+  const avgPlanned = plannedDays.length
+    ? Math.round(plannedDays.reduce((a, b) => a + b, 0) / plannedDays.length)
+    : 0;
+  const bySecretary = group(filtered, (o) => o.secretaria),
+    byUnit = group(filtered, (o) => o.unidade),
+    byTeam = group(filtered, (o) => o.team),
+    byService = group(filtered, (o) => o.serviceType);
+  const maxGroup = Math.max(
+    1,
+    ...bySecretary.map((x) => x[1]),
+    ...byUnit.map((x) => x[1]),
+    ...byTeam.map((x) => x[1]),
+    ...byService.map((x) => x[1])
+  );
 
-  const chargePeriodOrders=useMemo(()=>orders.filter(o=>matchesPeriod(o)&&matchesSearch(o)&&!o.archived&&o.overdueDays>0&&!['ATENDIDA','CONCLUIDA','CANCELADA'].includes(o.status)),[orders,year,month,q]);
-  const chargeTeams=useMemo(()=>[...new Set(chargePeriodOrders.map(o=>(o.team||'Não informado').trim()||'Não informado'))].sort((a,b)=>a.localeCompare(b,'pt-BR')),[chargePeriodOrders]);
-  const chargeCandidates=useMemo(()=>chargePeriodOrders.filter(o=>chargeTeam==='TODAS'||((o.team||'Não informado').trim()||'Não informado')===chargeTeam).sort((a,b)=>b.overdueDays-a.overdueDays||a.number-b.number),[chargePeriodOrders,chargeTeam]);
-  const chargeContext=`${monthLong[month]} de ${year}${chargeTeam==='TODAS'?'':` • ${chargeTeam}`}`;
-  const buildBulkCharge=()=>{
-    const lines=chargeCandidates.map(o=>`• O.S. ${o.number}/${new Date(o.openedAt+'T12:00:00').getFullYear()} — ${o.serviceType} — ${o.unidade||o.secretaria} — prazo ${fmt(o.deadline)} — ${o.overdueDays} ${o.overdueDays===1?'dia':'dias'} em atraso`);
+  const chargePeriodOrders = useMemo(
+    () =>
+      orders.filter(
+        (o) =>
+          matchesPeriod(o) &&
+          matchesSearch(o) &&
+          !o.archived &&
+          o.overdueDays > 0 &&
+          !['ATENDIDA', 'CONCLUIDA', 'CANCELADA'].includes(o.status)
+      ),
+    [orders, year, month, q]
+  );
+  const chargeTeams = useMemo(
+    () =>
+      [
+        ...new Set(
+          chargePeriodOrders.map((o) => (o.team || 'Não informado').trim() || 'Não informado')
+        ),
+      ].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [chargePeriodOrders]
+  );
+  const chargeCandidates = useMemo(
+    () =>
+      chargePeriodOrders
+        .filter(
+          (o) =>
+            chargeTeam === 'TODAS' ||
+            ((o.team || 'Não informado').trim() || 'Não informado') === chargeTeam
+        )
+        .sort((a, b) => b.overdueDays - a.overdueDays || a.number - b.number),
+    [chargePeriodOrders, chargeTeam]
+  );
+  const chargeContext = `${monthLong[month]} de ${year}${chargeTeam === 'TODAS' ? '' : ` • ${chargeTeam}`}`;
+  const buildBulkCharge = () => {
+    const lines = chargeCandidates.map(
+      (o) =>
+        `• O.S. ${o.number}/${new Date(o.openedAt + 'T12:00:00').getFullYear()} — ${o.serviceType} — ${o.unidade || o.secretaria} — prazo ${fmt(o.deadline)} — ${o.overdueDays} ${o.overdueDays === 1 ? 'dia' : 'dias'} em atraso`
+    );
     return `COBRANÇA DE ORDENS DE SERVIÇO EM ATRASO\n\nPrezados, solicitamos atualização e justificativa referente às Ordens de Serviço abaixo, que permanecem em atraso:\n\n${lines.join('\n')}\n\nFavor informar a situação atual de cada serviço, eventual impedimento e a previsão para conclusão.\n\nDepartamento de Engenharia`;
   };
-  const openBulkCharge=()=>{if(!chargeCandidates.length){alert('Não há O.S. ativas em atraso para os filtros selecionados.');return}setChargeDraft(buildBulkCharge());setChargeOpen(true)};
-  const copyBulkCharge=async()=>{try{await navigator.clipboard.writeText(chargeDraft);const saved=await onBulkCharge(chargeCandidates.map(o=>o.id),chargeContext);if(saved){alert(`Cobrança copiada e registrada em ${chargeCandidates.length} O.S.`);setChargeOpen(false)}else alert('A mensagem foi copiada, mas o histórico não pôde ser salvo.')}catch{alert('Não foi possível copiar a cobrança para a área de transferência.')}};
+  const openBulkCharge = () => {
+    if (!chargeCandidates.length) {
+      alert('Não há O.S. ativas em atraso para os filtros selecionados.');
+      return;
+    }
+    setChargeDraft(buildBulkCharge());
+    setChargeOpen(true);
+  };
+  const copyBulkCharge = async () => {
+    try {
+      await navigator.clipboard.writeText(chargeDraft);
+      const saved = await onBulkCharge(
+        chargeCandidates.map((o) => o.id),
+        chargeContext
+      );
+      if (saved) {
+        alert(`Cobrança copiada e registrada em ${chargeCandidates.length} O.S.`);
+        setChargeOpen(false);
+      } else alert('A mensagem foi copiada, mas o histórico não pôde ser salvo.');
+    } catch {
+      alert('Não foi possível copiar a cobrança para a área de transferência.');
+    }
+  };
 
-  const detailed=useMemo(()=>{
-    if(!drill)return filtered;
-    return filtered.filter(o=>{
-      if(drill.type==='TOTAL')return true;
-      if(drill.type==='ATTENDED')return o.status==='ATENDIDA'||o.status==='CONCLUIDA';
-      if(drill.type==='PENDING')return !o.archived&&['ABERTA','EM_ANDAMENTO','PARALISADA','AGUARDANDO_MATERIAL'].includes(o.status);
-      if(drill.type==='LATE')return !o.archived&&o.overdueDays>0;
-      if(drill.type==='MESSAGES')return (o.history||[]).some(h=>h.kind==='MENSAGEM');
-      if(drill.type==='CHARGES')return (o.history||[]).some(h=>h.kind==='MENSAGEM'&&h.messageKind==='ATRASO');
-      const expected=(drill.value||'Não informado').trim()||'Não informado';
-      if(drill.type==='SECRETARIA')return (o.secretaria||'Não informado').trim()===expected;
-      if(drill.type==='UNIDADE')return (o.unidade||'Não informado').trim()===expected;
-      if(drill.type==='EQUIPE')return (o.team||'Não informado').trim()===expected;
-      if(drill.type==='SERVICO')return (o.serviceType||'Não informado').trim()===expected;
+  const detailed = useMemo(() => {
+    if (!drill) return filtered;
+    return filtered.filter((o) => {
+      if (drill.type === 'TOTAL') return true;
+      if (drill.type === 'ATTENDED') return o.status === 'ATENDIDA' || o.status === 'CONCLUIDA';
+      if (drill.type === 'PENDING')
+        return (
+          !o.archived &&
+          ['ABERTA', 'EM_ANDAMENTO', 'PARALISADA', 'AGUARDANDO_MATERIAL'].includes(o.status)
+        );
+      if (drill.type === 'LATE') return !o.archived && o.overdueDays > 0;
+      if (drill.type === 'MESSAGES') return (o.history || []).some((h) => h.kind === 'MENSAGEM');
+      if (drill.type === 'CHARGES')
+        return (o.history || []).some((h) => h.kind === 'MENSAGEM' && h.messageKind === 'ATRASO');
+      const expected = (drill.value || 'Não informado').trim() || 'Não informado';
+      if (drill.type === 'SECRETARIA') return (o.secretaria || 'Não informado').trim() === expected;
+      if (drill.type === 'UNIDADE') return (o.unidade || 'Não informado').trim() === expected;
+      if (drill.type === 'EQUIPE') return (o.team || 'Não informado').trim() === expected;
+      if (drill.type === 'SERVICO') return (o.serviceType || 'Não informado').trim() === expected;
       return true;
     });
-  },[filtered,drill]);
+  }, [filtered, drill]);
 
-  const toggleDrill=(next:Exclude<Drill,null>)=>setDrill(current=>current?.type===next.type&&current?.value===next.value?null:next);
-  const metricClass=(type:string)=>`metric report-metric${drill?.type===type?' selected':''}`;
-  const Metric=({type,label,value,Icon,onClick}:{type:string;label:string;value:string|number;Icon:any;onClick:()=>void})=><button type="button" className={metricClass(type)} onClick={onClick} style={{textAlign:'left',cursor:'pointer',width:'100%',border:'1px solid var(--border,#dce7df)'}}><div><span>{label}</span><strong>{value}</strong></div><Icon size={22}/></button>;
-  const GroupTable=({title,rows,type}:{title:string;rows:[string,number][];type:'SECRETARIA'|'UNIDADE'|'EQUIPE'|'SERVICO'})=><article className="panel"><div className="panel-title"><h3>{title}</h3><span>{rows.length} grupo(s)</span></div>{rows.length===0?<p className="hint">Sem dados no período.</p>:rows.map(([name,count])=><button type="button" key={name} onClick={()=>toggleDrill({type,value:name,label:`${title.replace('O.S. por ','')}: ${name}`})} style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:10,alignItems:'center',padding:'8px 0',border:0,borderBottom:'1px solid #edf2ee',background:drill?.type===type&&drill.value===name?'#eef8f2':'transparent',width:'100%',textAlign:'left',cursor:'pointer'}}><div style={{minWidth:0}}><b style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={name}>{name}</b><div style={{height:5,background:'#edf2ee',borderRadius:99,marginTop:5,overflow:'hidden'}}><i style={{display:'block',height:'100%',width:`${Math.max(4,(count/maxGroup)*100)}%`,background:'var(--green-700)',borderRadius:99}}/></div></div><strong>{count}</strong></button>)}</article>;
+  const toggleDrill = (next: Exclude<Drill, null>) =>
+    setDrill((current) =>
+      current?.type === next.type && current?.value === next.value ? null : next
+    );
+  const metricClass = (type: string) =>
+    `metric report-metric${drill?.type === type ? ' selected' : ''}`;
+  const Metric = ({
+    type,
+    label,
+    value,
+    Icon,
+    onClick,
+  }: {
+    type: string;
+    label: string;
+    value: string | number;
+    Icon: any;
+    onClick: () => void;
+  }) => (
+    <button
+      type="button"
+      className={metricClass(type)}
+      onClick={onClick}
+      style={{
+        textAlign: 'left',
+        cursor: 'pointer',
+        width: '100%',
+        border: '1px solid var(--border,#dce7df)',
+      }}
+    >
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+      <Icon size={22} />
+    </button>
+  );
+  const GroupTable = ({
+    title,
+    rows,
+    type,
+  }: {
+    title: string;
+    rows: [string, number][];
+    type: 'SECRETARIA' | 'UNIDADE' | 'EQUIPE' | 'SERVICO';
+  }) => (
+    <article className="panel">
+      <div className="panel-title">
+        <h3>{title}</h3>
+        <span>{rows.length} grupo(s)</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="hint">Sem dados no período.</p>
+      ) : (
+        rows.map(([name, count]) => (
+          <button
+            type="button"
+            key={name}
+            onClick={() =>
+              toggleDrill({
+                type,
+                value: name,
+                label: `${title.replace('O.S. por ', '')}: ${name}`,
+              })
+            }
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0,1fr) auto',
+              gap: 10,
+              alignItems: 'center',
+              padding: '8px 0',
+              border: 0,
+              borderBottom: '1px solid #edf2ee',
+              background: drill?.type === type && drill.value === name ? '#eef8f2' : 'transparent',
+              width: '100%',
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <b
+                style={{
+                  display: 'block',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={name}
+              >
+                {name}
+              </b>
+              <div
+                style={{
+                  height: 5,
+                  background: '#edf2ee',
+                  borderRadius: 99,
+                  marginTop: 5,
+                  overflow: 'hidden',
+                }}
+              >
+                <i
+                  style={{
+                    display: 'block',
+                    height: '100%',
+                    width: `${Math.max(4, (count / maxGroup) * 100)}%`,
+                    background: 'var(--green-700)',
+                    borderRadius: 99,
+                  }}
+                />
+              </div>
+            </div>
+            <strong>{count}</strong>
+          </button>
+        ))
+      )}
+    </article>
+  );
 
-  return <>
-    <header className="topbar"><div><h1>Relatórios</h1><p>Indicadores administrativos e consolidação das Ordens de Serviço</p></div><button onClick={()=>window.print()}><Printer size={17}/>Imprimir</button></header>
-    <section className="table-card"><div className="table-toolbar"><div><h2>Filtros do relatório</h2><p>Selecione período, situação e pesquisa.</p></div></div><div className="filters" style={{alignItems:'center',gap:10,flexWrap:'wrap'}}><select value={year} onChange={e=>{setYear(Number(e.target.value));setDrill(null);setChargeOpen(false)}}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select><select value={month} onChange={e=>{setMonth(Number(e.target.value));setDrill(null);setChargeOpen(false)}}>{monthLabels.map((m,i)=><option key={m} value={i}>{m}</option>)}</select><select value={status} onChange={e=>{setStatus(e.target.value);setDrill(null)}}><option value="TODOS">Todas as situações</option><option value="ABERTA">Abertas</option><option value="EM_ANDAMENTO">Em andamento</option><option value="PARALISADA">Paralisadas</option><option value="AGUARDANDO_MATERIAL">Aguardando material</option><option value="ATENDIDA">Atendidas</option><option value="CONCLUIDA">Concluídas</option><option value="CANCELADA">Canceladas</option><option value="ARQUIVADAS">Arquivadas</option></select><div className="search"><Search size={17}/><input value={q} onChange={e=>{setQ(e.target.value);setDrill(null);setChargeOpen(false)}} placeholder="Número, secretaria, unidade, serviço..."/></div></div></section>
-    <section className="cards"><Metric type="TOTAL" label="Total no período" value={filtered.length} Icon={BarChart3} onClick={()=>toggleDrill({type:'TOTAL',label:'Total no período'})}/><Metric type="ATTENDED" label="Atendidas / concluídas" value={attended} Icon={BarChart3} onClick={()=>toggleDrill({type:'ATTENDED',label:'Atendidas / concluídas'})}/><Metric type="PENDING" label="Pendentes" value={pending} Icon={Clock3} onClick={()=>toggleDrill({type:'PENDING',label:'Pendentes'})}/><Metric type="LATE" label="Atrasadas" value={late} Icon={Clock3} onClick={()=>toggleDrill({type:'LATE',label:'Atrasadas'})}/><Metric type="ATTENDED" label="Taxa de atendimento" value={`${serviceRate}%`} Icon={BarChart3} onClick={()=>toggleDrill({type:'ATTENDED',label:'Atendidas / concluídas'})}/><Metric type="TOTAL" label="Prazo médio planejado" value={`${avgPlanned} dias`} Icon={Clock3} onClick={()=>toggleDrill({type:'TOTAL',label:'Total no período'})}/><Metric type="MESSAGES" label="Mensagens registradas" value={messageCount} Icon={MessageSquareText} onClick={()=>toggleDrill({type:'MESSAGES',label:'O.S. com mensagens registradas'})}/><Metric type="CHARGES" label="Cobranças de atraso" value={chargeCount} Icon={MessageSquareText} onClick={()=>toggleDrill({type:'CHARGES',label:'O.S. com cobranças de atraso'})}/></section>
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <h1>Relatórios</h1>
+          <p>Indicadores administrativos e consolidação das Ordens de Serviço</p>
+        </div>
+        <button onClick={() => window.print()}>
+          <Printer size={17} />
+          Imprimir
+        </button>
+      </header>
+      <section className="table-card">
+        <div className="table-toolbar">
+          <div>
+            <h2>Filtros do relatório</h2>
+            <p>Selecione período, situação e pesquisa.</p>
+          </div>
+        </div>
+        <div className="filters" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <select
+            value={year}
+            onChange={(e) => {
+              setYear(Number(e.target.value));
+              setDrill(null);
+              setChargeOpen(false);
+            }}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <select
+            value={month}
+            onChange={(e) => {
+              setMonth(Number(e.target.value));
+              setDrill(null);
+              setChargeOpen(false);
+            }}
+          >
+            {monthLabels.map((m, i) => (
+              <option key={m} value={i}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setDrill(null);
+            }}
+          >
+            <option value="TODOS">Todas as situações</option>
+            <option value="ABERTA">Abertas</option>
+            <option value="EM_ANDAMENTO">Em andamento</option>
+            <option value="PARALISADA">Paralisadas</option>
+            <option value="AGUARDANDO_MATERIAL">Aguardando material</option>
+            <option value="ATENDIDA">Atendidas</option>
+            <option value="CONCLUIDA">Concluídas</option>
+            <option value="CANCELADA">Canceladas</option>
+            <option value="ARQUIVADAS">Arquivadas</option>
+          </select>
+          <div className="search">
+            <Search size={17} />
+            <input
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setDrill(null);
+                setChargeOpen(false);
+              }}
+              placeholder="Número, secretaria, unidade, serviço..."
+            />
+          </div>
+        </div>
+      </section>
+      <section className="cards">
+        <Metric
+          type="TOTAL"
+          label="Total no período"
+          value={filtered.length}
+          Icon={BarChart3}
+          onClick={() => toggleDrill({ type: 'TOTAL', label: 'Total no período' })}
+        />
+        <Metric
+          type="ATTENDED"
+          label="Atendidas / concluídas"
+          value={attended}
+          Icon={BarChart3}
+          onClick={() => toggleDrill({ type: 'ATTENDED', label: 'Atendidas / concluídas' })}
+        />
+        <Metric
+          type="PENDING"
+          label="Pendentes"
+          value={pending}
+          Icon={Clock3}
+          onClick={() => toggleDrill({ type: 'PENDING', label: 'Pendentes' })}
+        />
+        <Metric
+          type="LATE"
+          label="Atrasadas"
+          value={late}
+          Icon={Clock3}
+          onClick={() => toggleDrill({ type: 'LATE', label: 'Atrasadas' })}
+        />
+        <Metric
+          type="ATTENDED"
+          label="Taxa de atendimento"
+          value={`${serviceRate}%`}
+          Icon={BarChart3}
+          onClick={() => toggleDrill({ type: 'ATTENDED', label: 'Atendidas / concluídas' })}
+        />
+        <Metric
+          type="TOTAL"
+          label="Prazo médio planejado"
+          value={`${avgPlanned} dias`}
+          Icon={Clock3}
+          onClick={() => toggleDrill({ type: 'TOTAL', label: 'Total no período' })}
+        />
+        <Metric
+          type="MESSAGES"
+          label="Mensagens registradas"
+          value={messageCount}
+          Icon={MessageSquareText}
+          onClick={() => toggleDrill({ type: 'MESSAGES', label: 'O.S. com mensagens registradas' })}
+        />
+        <Metric
+          type="CHARGES"
+          label="Cobranças de atraso"
+          value={chargeCount}
+          Icon={MessageSquareText}
+          onClick={() => toggleDrill({ type: 'CHARGES', label: 'O.S. com cobranças de atraso' })}
+        />
+      </section>
 
-    <section className="table-card" style={{marginBottom:12}}><div className="table-toolbar"><div><h2>Cobrança em lote</h2><p>Gere uma única cobrança para as O.S. ativas em atraso do período. Arquivadas, atendidas, concluídas e canceladas nunca entram.</p></div><button className="primary" onClick={openBulkCharge} disabled={!chargeCandidates.length}><MessageSquareText size={17}/>Gerar cobrança ({chargeCandidates.length})</button></div><div className="filters" style={{alignItems:'center',gap:10,flexWrap:'wrap'}}><span><b>Período:</b> {monthLong[month]} de {year}</span><select value={chargeTeam} onChange={e=>{setChargeTeam(e.target.value);setChargeOpen(false)}}><option value="TODAS">Todas as equipes / empresas</option>{chargeTeams.map(team=><option key={team} value={team}>{team}</option>)}</select><span className="sub">{chargeCandidates.length} O.S. em atraso elegível(is)</span></div>{chargeOpen&&<div style={{marginTop:14,padding:14,border:'1px solid #dce7df',borderRadius:12,background:'#f8fbf9'}}><div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',marginBottom:10}}><div><b>Mensagem de cobrança</b><span className="sub">Revise ou edite antes de copiar.</span></div><button onClick={()=>setChargeOpen(false)}><X size={16}/>Fechar</button></div><textarea value={chargeDraft} onChange={e=>setChargeDraft(e.target.value)} rows={Math.min(18,8+chargeCandidates.length)} style={{width:'100%',resize:'vertical',minHeight:180,padding:12,border:'1px solid #cfdcd3',borderRadius:8,fontFamily:'inherit'}}/><div style={{display:'flex',justifyContent:'flex-end',marginTop:10}}><button className="primary" onClick={copyBulkCharge}><Copy size={16}/>Copiar e registrar cobrança</button></div></div>}</section>
+      <section className="table-card" style={{ marginBottom: 12 }}>
+        <div className="table-toolbar">
+          <div>
+            <h2>Cobrança em lote</h2>
+            <p>
+              Gere uma única cobrança para as O.S. ativas em atraso do período. Arquivadas,
+              atendidas, concluídas e canceladas nunca entram.
+            </p>
+          </div>
+          <button className="primary" onClick={openBulkCharge} disabled={!chargeCandidates.length}>
+            <MessageSquareText size={17} />
+            Gerar cobrança ({chargeCandidates.length})
+          </button>
+        </div>
+        <div className="filters" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span>
+            <b>Período:</b> {monthLong[month]} de {year}
+          </span>
+          <select
+            value={chargeTeam}
+            onChange={(e) => {
+              setChargeTeam(e.target.value);
+              setChargeOpen(false);
+            }}
+          >
+            <option value="TODAS">Todas as equipes / empresas</option>
+            {chargeTeams.map((team) => (
+              <option key={team} value={team}>
+                {team}
+              </option>
+            ))}
+          </select>
+          <span className="sub">{chargeCandidates.length} O.S. em atraso elegível(is)</span>
+        </div>
+        {chargeOpen && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 14,
+              border: '1px solid #dce7df',
+              borderRadius: 12,
+              background: '#f8fbf9',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 10,
+                alignItems: 'center',
+                marginBottom: 10,
+              }}
+            >
+              <div>
+                <b>Mensagem de cobrança</b>
+                <span className="sub">Revise ou edite antes de copiar.</span>
+              </div>
+              <button onClick={() => setChargeOpen(false)}>
+                <X size={16} />
+                Fechar
+              </button>
+            </div>
+            <textarea
+              value={chargeDraft}
+              onChange={(e) => setChargeDraft(e.target.value)}
+              rows={Math.min(18, 8 + chargeCandidates.length)}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                minHeight: 180,
+                padding: 12,
+                border: '1px solid #cfdcd3',
+                borderRadius: 8,
+                fontFamily: 'inherit',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+              <button className="primary" onClick={copyBulkCharge}>
+                <Copy size={16} />
+                Copiar e registrar cobrança
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
-    {drill&&<section className="table-card" style={{padding:'10px 16px',marginBottom:12}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}><div><b>Filtro detalhado: {drill.label}</b><span className="sub">{detailed.length} O.S. correspondente(s)</span></div><button onClick={()=>setDrill(null)}><X size={16}/>Limpar seleção</button></div></section>}
-    <section className="content-grid"><GroupTable title="O.S. por secretaria" rows={bySecretary} type="SECRETARIA"/><GroupTable title="O.S. por unidade" rows={byUnit} type="UNIDADE"/><GroupTable title="O.S. por equipe / empresa" rows={byTeam} type="EQUIPE"/><GroupTable title="O.S. por tipo de serviço" rows={byService} type="SERVICO"/></section>
-    <section className="table-card"><div className="table-toolbar"><div><h2>{drill?drill.label:'O.S. encontradas'}</h2><p>{detailed.length} registro(s) exibido(s) conforme os filtros selecionados.</p></div></div><div className="table-scroll"><table><thead><tr><th>O.S.</th><th>Data</th><th>Secretaria / Unidade</th><th>Serviço</th><th>Equipe</th><th>Prazo</th><th>Status</th><th>Mensagens</th></tr></thead><tbody>{detailed.slice().sort((a,b)=>b.number-a.number||(b.openedAt||'').localeCompare(a.openedAt||'')).map(os=><tr key={os.id} onClick={()=>onOpen(os.id)} style={{cursor:'pointer'}}><td><b>#{os.number}</b></td><td>{fmt(os.openedAt)}</td><td><b>{os.secretaria}</b><span className="sub">{os.unidade}</span></td><td><b>{os.serviceType}</b><span className="sub clamp">{os.description}</span></td><td>{os.team}</td><td>{fmt(os.deadline)}{os.overdueDays>0&&<span className="overdue">{os.overdueDays} dias</span>}</td><td><span className={`status s-${os.status.toLowerCase()}`}>{os.status.replaceAll('_',' ')}</span>{os.archived&&<span className="sub">Arquivada</span>}</td><td>{(os.history||[]).filter(h=>h.kind==='MENSAGEM').length}</td></tr>)}{detailed.length===0&&<tr><td colSpan={8} style={{textAlign:'center',padding:28}}>Nenhuma O.S. encontrada para este filtro.</td></tr>}</tbody></table></div></section>
-  </>;
+      {drill && (
+        <section className="table-card" style={{ padding: '10px 16px', marginBottom: 12 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div>
+              <b>Filtro detalhado: {drill.label}</b>
+              <span className="sub">{detailed.length} O.S. correspondente(s)</span>
+            </div>
+            <button onClick={() => setDrill(null)}>
+              <X size={16} />
+              Limpar seleção
+            </button>
+          </div>
+        </section>
+      )}
+      <section className="content-grid">
+        <GroupTable title="O.S. por secretaria" rows={bySecretary} type="SECRETARIA" />
+        <GroupTable title="O.S. por unidade" rows={byUnit} type="UNIDADE" />
+        <GroupTable title="O.S. por equipe / empresa" rows={byTeam} type="EQUIPE" />
+        <GroupTable title="O.S. por tipo de serviço" rows={byService} type="SERVICO" />
+      </section>
+      <section className="table-card">
+        <div className="table-toolbar">
+          <div>
+            <h2>{drill ? drill.label : 'O.S. encontradas'}</h2>
+            <p>{detailed.length} registro(s) exibido(s) conforme os filtros selecionados.</p>
+          </div>
+        </div>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>O.S.</th>
+                <th>Data</th>
+                <th>Secretaria / Unidade</th>
+                <th>Serviço</th>
+                <th>Equipe</th>
+                <th>Prazo</th>
+                <th>Status</th>
+                <th>Mensagens</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detailed
+                .slice()
+                .sort(
+                  (a, b) =>
+                    b.number - a.number || (b.openedAt || '').localeCompare(a.openedAt || '')
+                )
+                .map((os) => (
+                  <tr key={os.id} onClick={() => onOpen(os.id)} style={{ cursor: 'pointer' }}>
+                    <td>
+                      <b>#{os.number}</b>
+                    </td>
+                    <td>{fmt(os.openedAt)}</td>
+                    <td>
+                      <b>{os.secretaria}</b>
+                      <span className="sub">{os.unidade}</span>
+                    </td>
+                    <td>
+                      <b>{os.serviceType}</b>
+                      <span className="sub clamp">{os.description}</span>
+                    </td>
+                    <td>{os.team}</td>
+                    <td>
+                      {fmt(os.deadline)}
+                      {os.overdueDays > 0 && <span className="overdue">{os.overdueDays} dias</span>}
+                    </td>
+                    <td>
+                      <span className={`status s-${os.status.toLowerCase()}`}>
+                        {os.status.replaceAll('_', ' ')}
+                      </span>
+                      {os.archived && <span className="sub">Arquivada</span>}
+                    </td>
+                    <td>{(os.history || []).filter((h) => h.kind === 'MENSAGEM').length}</td>
+                  </tr>
+                ))}
+              {detailed.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: 28 }}>
+                    Nenhuma O.S. encontrada para este filtro.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
 }

@@ -1,9 +1,11 @@
 # S.O.S — Pacote para Auditoria Externa por IA
 
 ## PRIORIDADE MÁXIMA: LOGOS E ÍCONES
+
 Antes de qualquer outra melhoria visual, confira e, se possível, CORRIJA diretamente a identidade visual do aplicativo.
 
 Arquivos relacionados que acompanham este pacote:
+
 - `src/brand.ts`
 - `src/brandIcon.ts`
 - `src/brand-fix.css`
@@ -15,6 +17,7 @@ Arquivos relacionados que acompanham este pacote:
 - `src-tauri/tauri.conf.json`
 
 A identidade aprovada é a marca SOS criada para o sistema. Verifique e corrija, se necessário:
+
 1. logo da tela inicial / criação do primeiro ADMIN;
 2. logo da tela de login;
 3. logo/cabeçalho dentro do sistema;
@@ -30,13 +33,16 @@ A identidade aprovada é a marca SOS criada para o sistema. Verifique e corrija,
 Se encontrar arquivo de logo quebrado, placeholder, asset inválido ou configuração de ícone incorreta, corrija no projeto e explique exatamente o que foi alterado. Não substitua a identidade aprovada por um ícone genérico.
 
 ## Objetivo
+
 Analise este projeto existente sem reconstruí-lo do zero. O objetivo é encontrar bugs, riscos de segurança, falhas de persistência, botões sem função, problemas de UX e inconsistências de regras de negócio. Preserve o que já funciona.
 
 ## Projeto
+
 S.O.S — Sistema de Ordens de Manutenção / Departamento de Engenharia.
 Stack atual: React + Vite + TypeScript no frontend; Tauri v2 + Rust + SQLite na versão desktop portátil para Windows.
 
 ## Regras importantes que NÃO devem ser alteradas sem apontar claramente o motivo
+
 1. O número da O.S. é manual.
 2. Possível duplicidade de número/ano/origem gera aviso, mas não bloqueia o salvamento.
 3. Identificação de importação histórica considera número + ano + origem (Executivo, Saúde, Educação ou outra origem), pois o mesmo número pode existir em bases diferentes.
@@ -58,6 +64,7 @@ Stack atual: React + Vite + TypeScript no frontend; Tauri v2 + Rust + SQLite na 
 ## Auditoria solicitada
 
 ### 1. Build e integridade
+
 - Rode `npm install`.
 - Rode `npm run audit`.
 - Rode `npm run typecheck`.
@@ -66,7 +73,9 @@ Stack atual: React + Vite + TypeScript no frontend; Tauri v2 + Rust + SQLite na 
 - Relate qualquer erro/warning relevante.
 
 ### 2. Botões e navegação
+
 Teste ou inspecione TODOS os botões visíveis. Procure especialmente:
+
 - botão sem `onClick` ou sem submit funcional;
 - botão que aparenta executar uma função, mas não altera estado/dados;
 - filtros que não filtram;
@@ -77,7 +86,9 @@ Teste ou inspecione TODOS os botões visíveis. Procure especialmente:
 Não considere uma ação funcional somente porque existe um handler: siga o fluxo até a persistência quando possível.
 
 ### 3. Persistência e SQLite
+
 Faça revisão detalhada de:
+
 - criação/edição/exclusão de O.S.;
 - reinício do aplicativo e recuperação dos dados;
 - persistência de usuários e primeiro ADMIN;
@@ -89,7 +100,9 @@ Faça revisão detalhada de:
 - transações e possibilidade de perda parcial de dados.
 
 ### 4. Arquivos e anexos
+
 Teste/inspecione:
+
 - JPG/JPEG/PNG/WEBP/GIF/PDF/DOC/DOCX;
 - limite de tamanho;
 - arquivo vazio/corrompido;
@@ -103,7 +116,9 @@ Teste/inspecione:
 - arquivos órfãos após importação/substituição/exclusão.
 
 ### 5. Segurança
+
 Analise:
+
 - hashing de senha e salt;
 - tentativas inválidas/bloqueio;
 - sessão;
@@ -120,7 +135,9 @@ Analise:
 Diferencie risco atual do modo local/portátil de riscos que se tornam críticos em uma futura arquitetura multiusuário.
 
 ### 6. Importação de planilha
+
 Verifique planilhas com:
+
 - cabeçalho na primeira linha;
 - títulos/células mescladas antes do cabeçalho;
 - cabeçalho em linhas posteriores;
@@ -135,7 +152,9 @@ Verifique planilhas com:
 O sistema deve mostrar prévia e somente salvar após confirmação.
 
 ### 7. PDF de O.S.
+
 Verifique:
+
 - número da O.S.;
 - DATA OFICIAL da O.S.;
 - secretaria;
@@ -149,7 +168,9 @@ Verifique:
 Não use OCR como se fosse requisito atual; apenas indique a limitação para PDFs escaneados.
 
 ### 8. Obras
+
 Teste/inspecione:
+
 - Nova obra;
 - editar obra;
 - ficha individual;
@@ -163,6 +184,7 @@ Teste/inspecione:
 - separação total das métricas de O.S.
 
 ### 9. Relatórios, impressão e dashboard
+
 - Dashboard: apenas ano atual operacional.
 - Arquivadas não devem contaminar métricas operacionais.
 - Relatórios devem respeitar filtros.
@@ -170,9 +192,11 @@ Teste/inspecione:
 - Verifique dados opcionais vazios e datas inválidas.
 
 ## Como entregar o relatório
+
 Classifique cada achado como: CRÍTICO, ALTO, MÉDIO, BAIXO ou MELHORIA.
 
 Para cada achado informe:
+
 1. arquivo e trecho/função;
 2. como reproduzir;
 3. impacto;
@@ -180,6 +204,7 @@ Para cada achado informe:
 5. se a correção pode quebrar alguma regra de negócio acima.
 
 Depois faça uma lista separada de:
+
 - bugs confirmados;
 - riscos de segurança;
 - botões/fluxos sem função;
