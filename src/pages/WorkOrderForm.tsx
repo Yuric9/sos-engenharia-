@@ -1,12 +1,9 @@
 import { useRef, useState } from 'react';
 import { ArrowLeft, FileText, Paperclip, Save } from 'lucide-react';
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Attachment, WorkOrder } from '../types';
 import { Catalogs } from '../lib/catalogs';
 import { isDesktopMode, saveDesktopAttachment } from '../lib/nativeDb';
 
-GlobalWorkerOptions.workerSrc = pdfWorker;
 const DESKTOP_MAX_BYTES = 10 * 1024 * 1024;
 const WEB_MAX_BYTES = 900000;
 
@@ -44,6 +41,12 @@ function monthNumber(name: string) {
   return m[normalize(name)];
 }
 async function readPdfText(file: File) {
+  // O pdf.js é grande; só é carregado quando um PDF é realmente lido.
+  const [{ getDocument, GlobalWorkerOptions }, { default: pdfWorker }] = await Promise.all([
+    import('pdfjs-dist'),
+    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+  ]);
+  GlobalWorkerOptions.workerSrc = pdfWorker;
   const data = await file.arrayBuffer();
   const pdf = await getDocument({ data }).promise;
   const pages: string[] = [];

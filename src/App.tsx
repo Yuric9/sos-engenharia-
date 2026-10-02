@@ -1,5 +1,5 @@
 import './brand-fix.css';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ClipboardPlus,
@@ -23,9 +23,11 @@ import Cadastros from './pages/Cadastros';
 import Usuarios from './pages/Usuarios';
 import Reports from './pages/Reports';
 import ArchivedOrders from './pages/ArchivedOrders';
-import ImportSpreadsheet from './pages/ImportSpreadsheet';
 import Works from './pages/Works';
 import DataBackup, { SosBackupFile } from './pages/DataBackup';
+
+// A importação usa a biblioteca de planilhas (pesada) e só é aberta pelo Admin.
+const ImportSpreadsheet = lazy(() => import('./pages/ImportSpreadsheet'));
 import { AuditEvent, AuditKind, StatusOS, WorkOrder } from './types';
 import { loadOrders, normalizeOrders, recalcOverdue, saveOrders } from './lib/storage';
 import { AppUser, UserScope, currentUser, loadUsers, logout, saveUsers } from './lib/auth';
@@ -700,7 +702,9 @@ export default function App() {
           {view === 'works' ? (
             <Works isAdmin={isAdmin} />
           ) : view === 'import' && isAdmin ? (
-            <ImportSpreadsheet orders={orders} onImport={importSpreadsheetOrders} />
+            <Suspense fallback={<p className="hint">Carregando...</p>}>
+              <ImportSpreadsheet orders={orders} onImport={importSpreadsheetOrders} />
+            </Suspense>
           ) : view === 'backup' && isAdmin ? (
             <DataBackup
               orders={orders}
