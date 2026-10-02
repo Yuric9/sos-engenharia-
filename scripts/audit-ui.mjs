@@ -19,8 +19,7 @@ function isInsideForm(source, index) {
 }
 
 for (const file of walk(srcRoot).filter((f) => f.endsWith('.tsx'))) {
-  let source = fs.readFileSync(file, 'utf8');
-  source = source.replace(/<div className="tabs">[\s\S]*?<\/div>/g, '');
+  const source = fs.readFileSync(file, 'utf8');
   const buttonRe = /<button\b([^>]*)>/g;
   let match;
   while ((match = buttonRe.exec(source))) {

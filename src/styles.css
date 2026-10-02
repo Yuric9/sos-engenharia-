@@ -215,7 +215,6 @@ body {
   display: flex;
   justify-content: space-between;
   min-height: 90px;
-  border-top: 3px solid var(--green-500);
 }
 .metric span {
   font-size: 13px;
@@ -595,17 +594,16 @@ textarea {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(320px, 1.15fr) minmax(340px, 0.85fr);
-  background: linear-gradient(135deg, #005d3f 0%, #0a6b49 52%, #f3f7f4 52%, #f3f7f4 100%);
-  padding: 48px;
-  align-items: center;
-  gap: 48px;
+  background: #f3f7f4;
 }
 .login-institution {
   color: #fff;
+  background: var(--green-900);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 22px;
-  max-width: 650px;
+  padding: 48px;
 }
 .login-institution img {
   width: 270px;
@@ -642,11 +640,10 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 30px;
-  box-shadow: 0 22px 60px rgba(3, 57, 39, 0.16);
-  max-width: 430px;
-  width: 100%;
-  justify-self: end;
-  border-top: 5px solid var(--yellow);
+  max-width: 400px;
+  width: calc(100% - 64px);
+  justify-self: center;
+  align-self: center;
 }
 .login-card h2 {
   margin: 6px 0 6px;
@@ -666,16 +663,6 @@ textarea {
   border-radius: 8px;
   font: inherit;
 }
-.login-lock {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: var(--green-100);
-  color: var(--green-900);
-  display: grid;
-  place-items: center;
-  margin-bottom: 16px;
-}
 .login-submit {
   width: 100%;
   justify-content: center;
@@ -683,6 +670,23 @@ textarea {
 }
 .login-error {
   color: #b42318 !important;
+}
+.login-notice {
+  color: var(--green-800) !important;
+}
+/* Base para selects soltos fora dos formulários (filtros de relatório, importação). */
+:where(.main) select {
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #cddbd1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+.topbar button,
+.ui-btn {
+  white-space: nowrap;
 }
 .print-os-sheet {
   display: none;
@@ -709,10 +713,10 @@ textarea {
   }
   .login-page {
     grid-template-columns: 1fr;
-    padding: 28px;
+    align-content: start;
   }
   .login-card {
-    justify-self: start;
+    margin: 32px 0;
   }
   .login-institution h1 {
     font-size: 30px;
@@ -753,14 +757,10 @@ textarea {
     width: 165px;
     height: auto;
   }
-  .login-page {
-    padding: 20px;
-    background: #f3f7f4;
-  }
   .login-institution {
-    background: var(--green-900);
-    border-radius: 16px;
-    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px 16px;
   }
   .login-institution img {
     width: 210px;

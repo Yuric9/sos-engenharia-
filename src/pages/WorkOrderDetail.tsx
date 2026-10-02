@@ -10,7 +10,6 @@ import {
   Camera,
   FileText,
   Clock3,
-  Package,
   Users,
   MessageSquareText,
   ExternalLink,
@@ -406,8 +405,9 @@ export default function WorkOrderDetail({
           <div>
             <h1>O.S. {os.number}</h1>
             <p>
-              {os.secretaria} • {os.unidade}
-              {os.local ? ` • ${os.local}` : ''}
+              {[os.secretaria, os.unidade, os.local]
+                .filter((part, i, all) => part && all.indexOf(part) === i)
+                .join(' • ')}
             </p>
           </div>
         </div>
@@ -486,15 +486,6 @@ export default function WorkOrderDetail({
           <small>{os.workforceOrigin}</small>
         </article>
       </section>
-      <div className="tabs">
-        <button className="active">Resumo</button>
-        <button>Andamentos</button>
-        <button>Fotos e arquivos</button>
-        <button>Materiais</button>
-        <button>Mão de obra</button>
-        <button>Histórico</button>
-        <button>Encerramento</button>
-      </div>
       <section className="content-grid">
         <article className="panel">
           <div className="panel-title">
@@ -547,16 +538,11 @@ export default function WorkOrderDetail({
               </button>
             </div>
           ))}
-          <div className="mini-row">
-            <Package size={17} />
-            <span>Registro de materiais vinculado à O.S.</span>
-          </div>
         </article>
         <article className="panel wide os-attachments">
           <div className="panel-title">
             <div>
               <h3>Fotos e documentos</h3>
-              <p className="hint">Galeria de imagens e arquivos vinculados à O.S.</p>
             </div>
             <button onClick={() => fileRef.current?.click()}>
               <Plus size={15} />

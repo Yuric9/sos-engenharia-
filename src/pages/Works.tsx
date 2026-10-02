@@ -304,7 +304,7 @@ export default function Works({ isAdmin }: { isAdmin: boolean }) {
       <header className="topbar">
         <div>
           <h1>Obras</h1>
-          <p>Acompanhamento institucional de obras, contratos e execução física.</p>
+          <p>Obras, contratos e execução física.</p>
         </div>
         {isAdmin && (
           <button className="primary" type="button" onClick={() => setEditing(blankWork())}>
@@ -328,7 +328,7 @@ export default function Works({ isAdmin }: { isAdmin: boolean }) {
         <div className="table-toolbar">
           <div>
             <h2>Obras cadastradas</h2>
-            <p>Consulta geral das obras. Somente ADMIN pode cadastrar ou alterar informações.</p>
+            <p>Somente o Admin pode cadastrar ou alterar obras.</p>
           </div>
           <div className="search">
             <Search size={17} />

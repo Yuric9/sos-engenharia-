@@ -44,9 +44,6 @@
   aspect-ratio: auto !important;
   object-fit: contain !important;
 }
-.tabs {
-  display: none !important;
-}
 @media (max-width: 1100px) {
   .municipal-header {
     grid-template-columns: 1fr auto;
@@ -153,27 +150,9 @@ td .sub.clamp {
   max-width: 260px;
 }
 
-.login-screen::before {
-  pointer-events: none;
-  z-index: 0;
-}
-.login-card {
-  position: relative;
-  z-index: 1;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.2);
-}
-.login-institution {
-  position: relative;
-  z-index: 1;
-}
 .login-institution h1,
 .login-institution p {
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-}
-.login-institution img {
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.18));
 }
 
 @media (max-width: 900px) {

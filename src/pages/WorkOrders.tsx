@@ -128,7 +128,7 @@ export default function WorkOrders({
       <header className="topbar">
         <div>
           <h1>Ordens de Serviço</h1>
-          <p>Consulta geral das O.S. ativas e em acompanhamento.</p>
+          <p>O.S. ativas.</p>
         </div>
       </header>
       <section className="table-card" style={{ marginBottom: 16 }}>

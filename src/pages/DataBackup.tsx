@@ -93,7 +93,7 @@ export default function DataBackup({
       <header className="topbar">
         <div>
           <h1>Backup / Migração</h1>
-          <p>Transferência segura dos dados e validação da cópia do HD externo.</p>
+          <p>Exportação, restauração e teste da cópia de segurança.</p>
         </div>
       </header>
       <section className="content-grid">

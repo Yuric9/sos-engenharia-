@@ -351,10 +351,7 @@ export default function WorkOrderForm({
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1>
-              {initial ? 'Editar' : 'Nova'} O.S. #{f.number || '—'}
-            </h1>
-            <p>Cadastro completo da Ordem de Serviço</p>
+            <h1>{initial ? `Editar O.S. ${initial.number}` : 'Nova O.S.'}</h1>
           </div>
         </div>
       </header>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart3, Search, Printer, Clock3, MessageSquareText, X, Copy } from 'lucide-react';
 import { WorkOrder } from '../types';
+import { Button } from '../components/ui';
 
 const monthLabels = [
   'Todos',
@@ -368,18 +369,17 @@ export default function Reports({
       <header className="topbar">
         <div>
           <h1>Relatórios</h1>
-          <p>Indicadores administrativos e consolidação das Ordens de Serviço</p>
+          <p>Indicadores das Ordens de Serviço por período.</p>
         </div>
-        <button onClick={() => window.print()}>
+        <Button onClick={() => window.print()}>
           <Printer size={17} />
           Imprimir
-        </button>
+        </Button>
       </header>
       <section className="table-card">
         <div className="table-toolbar">
           <div>
             <h2>Filtros do relatório</h2>
-            <p>Selecione período, situação e pesquisa.</p>
           </div>
         </div>
         <div className="filters" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

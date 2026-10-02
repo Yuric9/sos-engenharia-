@@ -142,7 +142,7 @@ export default function Usuarios({
       <header className="topbar">
         <div>
           <h1>Usuários</h1>
-          <p>Administração de acesso ao S.O.S. • Máximo de 2 ADMINs • Operadores sem limite.</p>
+          <p>Máximo de 2 administradores. Operadores sem limite.</p>
         </div>
         <button className="primary" onClick={beginCreate}>
           <Plus size={18} />

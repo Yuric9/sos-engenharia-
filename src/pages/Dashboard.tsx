@@ -186,10 +186,10 @@ export default function Dashboard({
     <>
       <header className="topbar">
         <div>
-          <h1>Dashboard — {DASHBOARD_SCOPE_LABELS[scope]}</h1>
+          <h1>Dashboard</h1>
           <p>
-            Visão operacional de {currentYear} • contexto: {DASHBOARD_SCOPE_LABELS[scope]}. Anos
-            anteriores permanecem no histórico arquivado.
+            O.S. de {currentYear} • {DASHBOARD_SCOPE_LABELS[scope]}. Anos anteriores ficam em
+            Arquivadas.
           </p>
         </div>
         <Button variant="primary" onClick={onNew}>

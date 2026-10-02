@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LockKeyhole, LogIn, Building2, ShieldCheck } from 'lucide-react';
+import { LogIn, Building2 } from 'lucide-react';
 import { login, AppUser, applyPassword, loadUsers, saveUsers } from '../lib/auth';
 import { isDesktopMode, saveDesktopSnapshot, SNAPSHOT_USERS } from '../lib/nativeDb';
 import { SOS_WIDE_LOGO } from '../brand';
@@ -11,11 +11,13 @@ export default function Login({ onLogin }: { onLogin: (u: AppUser) => void }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: any) => {
     e.preventDefault();
     setError('');
+    setNotice('');
     setBusy(true);
     try {
       if (firstAccess) {
@@ -37,7 +39,7 @@ export default function Login({ onLogin }: { onLogin: (u: AppUser) => void }) {
         setFirstAccess(false);
         setPassword('');
         setConfirmPassword('');
-        setError('Administrador criado. Agora entre com as credenciais cadastradas.');
+        setNotice('Administrador criado. Entre com o usuário e a senha cadastrados.');
         return;
       }
       const result = await login(user, password);
@@ -64,10 +66,7 @@ export default function Login({ onLogin }: { onLogin: (u: AppUser) => void }) {
         <div>
           <span className="eyebrow">PREFEITURA DE TRINDADE</span>
           <h1>Departamento de Engenharia</h1>
-          <p>
-            Gestão institucional das ordens de manutenção predial e das obras de engenharia do
-            município.
-          </p>
+          <p>Ordens de manutenção predial e obras de engenharia do município.</p>
           <div className="login-system">
             <Building2 size={18} />
             <b>S.O.S — Sistema de Ordens de Manutenção</b>
@@ -75,18 +74,12 @@ export default function Login({ onLogin }: { onLogin: (u: AppUser) => void }) {
         </div>
       </div>
       <form onSubmit={submit} className="login-card">
-        <div className="login-lock">
-          {firstAccess ? <ShieldCheck size={21} /> : <LockKeyhole size={21} />}
-        </div>
         <div>
-          <span className="eyebrow">
-            {firstAccess ? 'CONFIGURAÇÃO INICIAL' : 'ACESSO RESTRITO'}
-          </span>
           <h2>{firstAccess ? 'Criar administrador' : 'Entrar no S.O.S'}</h2>
           <p>
             {firstAccess
               ? 'Este equipamento ainda não possui usuário. Cadastre o primeiro administrador.'
-              : 'Utilize suas credenciais para acessar o ambiente interno.'}
+              : 'Informe seu usuário e senha.'}
           </p>
         </div>
         {firstAccess && (
@@ -120,6 +113,7 @@ export default function Login({ onLogin }: { onLogin: (u: AppUser) => void }) {
           </label>
         )}
         {error && <p className="login-error">{error}</p>}
+        {notice && <p className="login-notice">{notice}</p>}
         <button disabled={busy} className="primary login-submit">
           <LogIn size={18} />
           {busy ? 'Processando...' : firstAccess ? 'Criar administrador' : 'Entrar'}

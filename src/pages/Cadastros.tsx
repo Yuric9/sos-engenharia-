@@ -79,7 +79,7 @@ export default function Cadastros({
       <header className="topbar">
         <div>
           <h1>Cadastros</h1>
-          <p>Estrutura organizacional usada nas novas Ordens de Serviço.</p>
+          <p>Listas usadas no cadastro das O.S.</p>
         </div>
         <button className="primary" onClick={add}>
           <Plus size={18} />

@@ -356,7 +356,7 @@ export default function ImportSpreadsheet({ orders, onImport }: Props) {
     <>
       <header className="topbar">
         <div>
-          <h1>Administrativo — Importar Planilha</h1>
+          <h1>Importar planilha</h1>
           <p>
             Importe históricos de manutenção sem misturar Executivo, Saúde, Educação ou outras
             origens.
