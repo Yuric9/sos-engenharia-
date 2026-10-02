@@ -16,7 +16,7 @@ on:
       - 'index.html'
       - 'README.md'
       - '.gitignore'
-      - 'AUDITORIA-OUTRA-IA.md'
+      - 'tests/**'
       - '.github/workflows/build-portable-windows.yml'
       - '.github/workflows/package-source.yml'
 
@@ -30,8 +30,9 @@ jobs:
       - name: Create source ZIP
         run: |
           zip -r SOS-Engenharia-Auditoria-Completa.zip \
-            src src-tauri docs public scripts \
-            package.json tsconfig.json vite.config.ts index.html README.md .gitignore AUDITORIA-OUTRA-IA.md \
+            src src-tauri docs scripts tests \
+            package.json tsconfig.json vite.config.ts index.html README.md .gitignore \
+            vitest.config.ts .prettierrc.json .prettierignore \
             .github/workflows/build-portable-windows.yml \
             .github/workflows/package-source.yml \
             -x 'src-tauri/target/*' 'node_modules/*' 'dist/*' '*.log'
