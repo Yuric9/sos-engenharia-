@@ -247,7 +247,16 @@ export default function App() {
         <p>Carregando banco de dados do HD externo...</p>
       </div>
     );
-  if (!session) return <Login onLogin={setSession} />;
+  if (!session)
+    return (
+      <Login
+        onLogin={(user) => {
+          // O login atualiza tentativas/bloqueio; recarrega a lista para não sobrescrevê-la depois.
+          setUsers(loadUsers());
+          setSession(user);
+        }}
+      />
+    );
   const isAdmin = session.role === 'ADMIN';
   const sessionScope: UserScope = session.scope || 'EXECUTIVO';
   const canSeeAll = isAdmin || sessionScope === 'GABINETE';

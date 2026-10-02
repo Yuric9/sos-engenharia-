@@ -1,3 +1,5 @@
+import { saveDesktopSnapshot, SNAPSHOT_USERS } from './nativeDb';
+
 export type UserRole = 'ADMIN' | 'OPERADOR';
 export type UserScope = 'EXECUTIVO' | 'SAUDE' | 'EDUCACAO' | 'GABINETE';
 export interface AppUser {
@@ -96,6 +98,14 @@ export function saveUsers(v: AppUser[]): boolean {
   }
 }
 
+// No modo desktop o SQLite é a fonte principal: ao iniciar, o App sobrescreve o
+// localStorage com o snapshot do banco. Por isso as tentativas de login precisam ser
+// gravadas nos dois lugares, senão reabrir o programa zera o bloqueio.
+async function persistLoginState(users: AppUser[]) {
+  saveUsers(users);
+  await saveDesktopSnapshot(SNAPSHOT_USERS, users);
+}
+
 function accessLog(userId: number | null, action: string, detail?: string) {
   try {
     const current = JSON.parse(localStorage.getItem(ACCESS_LOG) || '[]');
@@ -130,12 +140,12 @@ export async function login(
     const failed = (u.failedAttempts || 0) + 1;
     const lockedUntil = failed >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
     users[index] = { ...u, failedAttempts: failed >= 5 ? 0 : failed, lockedUntil };
-    saveUsers(users);
+    await persistLoginState(users);
     accessLog(u.id, 'LOGIN_FAIL', lockedUntil ? 'bloqueado por 15 minutos' : `tentativa ${failed}`);
     return { user: null, reason: lockedUntil ? 'LOCKED' : 'INVALID' };
   }
   users[index] = { ...u, failedAttempts: 0, lockedUntil: null };
-  saveUsers(users);
+  await persistLoginState(users);
   localStorage.setItem(SESSION, JSON.stringify({ id: u.id }));
   accessLog(u.id, 'LOGIN_SUCCESS');
   return { user: users[index] };
