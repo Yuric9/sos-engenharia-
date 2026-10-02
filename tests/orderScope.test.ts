@@ -2,14 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { orderScope, compactScopeValue, plainScopeValue } from '../src/lib/orderScope';
 import type { WorkOrder } from '../src/types';
 
-const order = (extra: Partial<WorkOrder> = {}) => ({
-  id: 1,
-  number: 1,
-  openedAt: '2026-01-01T00:00:00.000Z',
-  status: 'ABERTA',
-  secretaria: 'Executivo',
-  ...extra,
-} as WorkOrder);
+const order = (extra: Partial<WorkOrder> = {}) =>
+  ({
+    id: 1,
+    number: 1,
+    openedAt: '2026-01-01T00:00:00.000Z',
+    status: 'ABERTA',
+    secretaria: 'Executivo',
+    ...extra,
+  }) as WorkOrder;
 
 describe('orderScope', () => {
   it('normalizes accents and classifies Saúde', () => {
