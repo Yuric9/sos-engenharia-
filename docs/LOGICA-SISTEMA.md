@@ -47,3 +47,22 @@ Tauri + React/Vite + Rust + SQLite. Modo instalado usa pasta local do Windows. M
 ## Importação histórica
 
 A planilha Excel antiga será importada como base legada preservando número, data, local, serviço, atendimento, horas/diárias, observação, material e entrega. Duplicidades e datas suspeitas são sinalizadas, não apagadas automaticamente.
+
+## Regras que não devem mudar sem justificativa
+
+1. O número da O.S. é manual.
+2. Possível duplicidade de número/ano/origem gera aviso, mas não bloqueia o salvamento.
+3. A identificação de O.S. importada considera número + ano + origem (Executivo, Saúde, Educação ou outra), pois o mesmo número pode existir em bases diferentes.
+4. O Dashboard considera apenas o ano atual e não inclui itens arquivados.
+5. Registros de anos anteriores são arquivados automaticamente.
+6. Campos obrigatórios da O.S.: Número, Data, Secretaria, Tipo de serviço, Equipe, Prazo, Prioridade e Tempo previsto. Unidade/Órgão, Local, Descrição, Ofício, Materiais e Observações são opcionais.
+7. Ao carregar o PDF de uma O.S., o sistema tenta preencher número, data oficial e demais dados detectáveis; o PDF original fica anexado.
+8. PDF de materiais é apenas arquivado, sem interpretação dos itens.
+9. ADMIN tem acesso administrativo completo; no máximo 2 perfis ADMIN.
+10. OPERADOR não vê menus administrativos. Operador da Saúde vê só O.S. da Saúde; Educação, só Educação; Executivo, só Executivo. O Gabinete do Prefeito tem visão geral, sem funções administrativas.
+11. Obras são um módulo separado e não entram nas métricas do Dashboard de O.S.
+12. Todos podem consultar Obras; somente ADMIN cadastra ou edita.
+13. Medições de Obras são registro técnico, sem controle de pagamento.
+14. O modo portátil funciona com o executável + `portable.flag`, com dados em `sos-data/` ao lado do executável.
+15. O build de produção no Windows abre sem janela de console.
+16. Anexos no desktop são gravados como arquivos em `sos-data/anexos`, não como base64 no SQLite.
