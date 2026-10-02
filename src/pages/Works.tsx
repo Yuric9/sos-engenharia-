@@ -225,7 +225,7 @@ export default function Works({ isAdmin }: { isAdmin: boolean }) {
         const fixed = saved.map(normalizeWork);
         setWorks(fixed);
         saveLocal(fixed);
-        await saveDesktopSnapshot(SNAPSHOT_WORKS, fixed);
+        if (isAdmin) await saveDesktopSnapshot(SNAPSHOT_WORKS, fixed);
       } else if (works.length) await saveDesktopSnapshot(SNAPSHOT_WORKS, works);
     })();
     return () => {

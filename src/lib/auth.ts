@@ -1,4 +1,10 @@
-import { saveDesktopSnapshot, SNAPSHOT_USERS } from './nativeDb';
+import {
+  desktopLogin,
+  desktopLogout,
+  isDesktopMode,
+  loadDesktopSnapshot,
+  SNAPSHOT_USERS,
+} from './nativeDb';
 
 export type UserRole = 'ADMIN' | 'OPERADOR';
 export type UserScope = 'EXECUTIVO' | 'SAUDE' | 'EDUCACAO' | 'GABINETE';
@@ -98,14 +104,6 @@ export function saveUsers(v: AppUser[]): boolean {
   }
 }
 
-// No modo desktop o SQLite é a fonte principal: ao iniciar, o App sobrescreve o
-// localStorage com o snapshot do banco. Por isso as tentativas de login precisam ser
-// gravadas nos dois lugares, senão reabrir o programa zera o bloqueio.
-async function persistLoginState(users: AppUser[]) {
-  saveUsers(users);
-  await saveDesktopSnapshot(SNAPSHOT_USERS, users);
-}
-
 function accessLog(userId: number | null, action: string, detail?: string) {
   try {
     const current = JSON.parse(localStorage.getItem(ACCESS_LOG) || '[]');
@@ -118,6 +116,7 @@ export async function login(
   loginName: string,
   password: string
 ): Promise<{ user: AppUser | null; reason?: 'LOCKED' | 'INVALID' }> {
+  if (isDesktopMode()) return loginDesktop(loginName, password);
   const users = loadUsers();
   const index = users.findIndex(
     (x) => x.active && x.login.toLowerCase() === loginName.trim().toLowerCase()
@@ -140,15 +139,33 @@ export async function login(
     const failed = (u.failedAttempts || 0) + 1;
     const lockedUntil = failed >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
     users[index] = { ...u, failedAttempts: failed >= 5 ? 0 : failed, lockedUntil };
-    await persistLoginState(users);
+    saveUsers(users);
     accessLog(u.id, 'LOGIN_FAIL', lockedUntil ? 'bloqueado por 15 minutos' : `tentativa ${failed}`);
     return { user: null, reason: lockedUntil ? 'LOCKED' : 'INVALID' };
   }
   users[index] = { ...u, failedAttempts: 0, lockedUntil: null };
-  await persistLoginState(users);
+  saveUsers(users);
   localStorage.setItem(SESSION, JSON.stringify({ id: u.id }));
   accessLog(u.id, 'LOGIN_SUCCESS');
   return { user: users[index] };
+}
+
+// No desktop quem confere a senha e controla tentativas/bloqueio é o Rust, que também
+// abre a sessão usada para autorizar as gravações. Aqui só sincronizamos a cópia local.
+async function loginDesktop(
+  loginName: string,
+  password: string
+): Promise<{ user: AppUser | null; reason?: 'LOCKED' | 'INVALID' }> {
+  const result = await desktopLogin<AppUser>(loginName, password);
+  const stored = await loadDesktopSnapshot<AppUser[]>(SNAPSHOT_USERS);
+  if (stored) saveUsers(stored);
+  if (!result.user) {
+    accessLog(null, 'LOGIN_FAIL', result.reason || 'INVALID');
+    return { user: null, reason: result.reason || 'INVALID' };
+  }
+  localStorage.setItem(SESSION, JSON.stringify({ id: result.user.id }));
+  accessLog(result.user.id, 'LOGIN_SUCCESS');
+  return { user: currentUser() || result.user };
 }
 
 export function currentUser() {
@@ -163,4 +180,5 @@ export function logout() {
   const u = currentUser();
   if (u) accessLog(u.id, 'LOGOUT');
   localStorage.removeItem(SESSION);
+  void desktopLogout();
 }

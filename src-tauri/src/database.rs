@@ -3,8 +3,11 @@ use rusqlite::{params, Connection, OptionalExtension, Result, Transaction};
 use serde_json::Value;
 use std::{fs, path::{Component, Path, PathBuf}};
 use crate::portable;
+use crate::session::{self, Session};
 
 const MAX_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
+pub const SNAPSHOT_USERS: &str = "users";
+const SNAPSHOT_KEYS: &[&str] = &[SNAPSHOT_USERS, "catalogs", "works"];
 
 fn db_path() -> PathBuf { portable::data_root().join("data").join("sos.db") }
 fn attachments_root() -> PathBuf { portable::data_root().join("anexos") }
@@ -140,12 +143,44 @@ pub fn initialize()->Result<()> {
     conn.execute_batch(include_str!("../migrations/001_initial.sql"))?;
     conn.execute_batch(include_str!("../migrations/002_operational_hardening.sql"))?;
     migrate_legacy_orders(&mut conn)?;
+    archive_previous_years(&mut conn)?;
     drop(conn);
     let _=backup_daily();
     Ok(())
 }
 
 pub fn load_snapshot(key:&str)->Result<Option<String>> { let conn=open()?; conn.query_row("SELECT value_json FROM app_snapshots WHERE key=?1",params![key],|row|row.get(0)).optional() }
+/// O.S. de anos anteriores ficam arquivadas (mesma regra do frontend). Feito aqui na
+/// inicialização porque, antes do login, o frontend não tem permissão para regravar O.S.
+fn archive_previous_years(conn:&mut Connection)->Result<()> {
+    let current_year:i32=chrono::Local::now().format("%Y").to_string().parse().unwrap_or(0);
+    let mut stmt=conn.prepare("SELECT id,order_json FROM work_order_records")?;
+    let rows=stmt.query_map([],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?)))?;
+    let mut pending=Vec::new();
+    for row in rows{
+        let (id,raw)=row?;
+        let Ok(mut value)=serde_json::from_str::<Value>(&raw) else{continue};
+        let opened=value.get("openedAt").and_then(Value::as_str).unwrap_or("");
+        let archived=value.get("archived").and_then(Value::as_bool).unwrap_or(false);
+        let year:i32=opened.get(..4).filter(|_|opened.get(4..5)==Some("-")).and_then(|y|y.parse().ok()).unwrap_or(0);
+        let old=year>0&&year<current_year;
+        if old&&!archived{value["archived"]=Value::Bool(true);pending.push((id,value.to_string()));}
+    }
+    drop(stmt);
+    let tx=conn.transaction()?;
+    for (id,json) in pending{tx.execute("UPDATE work_order_records SET order_json=?1,updated_at=CURRENT_TIMESTAMP WHERE id=?2",params![json,id])?;}
+    tx.commit()
+}
+
+/// Gravação de cadastros, obras e usuários: só o Admin, exceto na primeira gravação de
+/// cada chave (primeiro acesso, quando ainda não existe ninguém logado).
+pub fn save_snapshot_checked(key:&str,value_json:&str)->std::result::Result<(),String>{
+    if !SNAPSHOT_KEYS.contains(&key){return Err("Tipo de dado desconhecido".into())}
+    let exists=load_snapshot(key).map_err(|e|e.to_string())?.is_some_and(|raw|raw.trim()!="[]");
+    if exists{session::require_admin()?;}
+    save_snapshot(key,value_json).map_err(|e|e.to_string())
+}
+
 pub fn save_snapshot(key:&str,value_json:&str)->Result<()> { let conn=open()?; conn.execute("INSERT INTO app_snapshots(key,value_json,updated_at) VALUES(?1,?2,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=CURRENT_TIMESTAMP",params![key,value_json])?; Ok(()) }
 
 pub fn load_orders()->Result<Vec<String>>{
@@ -153,9 +188,13 @@ pub fn load_orders()->Result<Vec<String>>{
     let rows=stmt.query_map([],|r|r.get::<_,String>(0))?; let mut out=Vec::new(); for row in rows{out.push(row?)} Ok(out)
 }
 
-pub fn save_order(order_json:&str,user_id:Option<i64>)->std::result::Result<(),String>{
+pub fn save_order(order_json:&str,session:&Session)->std::result::Result<(),String>{
+    let user_id=Some(session.user_id);
     let (id,number,json)=prepare_order(order_json)?; let mut conn=open().map_err(|e|e.to_string())?; let tx=conn.transaction().map_err(|e|e.to_string())?;
     let before:Option<String>=tx.query_row("SELECT order_json FROM work_order_records WHERE id=?1",params![id],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
+    let before_value=before.as_deref().and_then(|raw|serde_json::from_str::<Value>(raw).ok());
+    let after_value:Value=serde_json::from_str(&json).map_err(|e|e.to_string())?;
+    if !session::can_write_order(session,before_value.as_ref(),&after_value){return Err("Você não tem acesso a esta O.S.".into())}
     tx.execute("INSERT INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET number=excluded.number,order_json=excluded.order_json,updated_at=CURRENT_TIMESTAMP",params![id,number,&json]).map_err(|e|e.to_string())?;
     audit(&tx,user_id,if before.is_some(){"UPDATE"}else{"CREATE"},Some(id),before.as_deref(),Some(&json)).map_err(|e|e.to_string())?;
     tx.commit().map_err(|e|e.to_string())?; Ok(())
