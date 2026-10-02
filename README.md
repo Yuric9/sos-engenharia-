@@ -3,7 +3,7 @@
 Sistema para gestão das Ordens de Serviço de manutenção predial e das obras do Departamento de
 Engenharia.
 
-Versão atual: **0.5.0**
+Versão atual: **0.6.0**
 
 ## Tecnologias
 
@@ -33,8 +33,16 @@ cargo test --manifest-path src-tauri/Cargo.toml  # testes do backend Rust
 ## Armazenamento
 
 - **Web:** dados no `localStorage` do navegador; anexos limitados a 900 KB.
-- **Desktop:** banco SQLite, com cada O.S. gravada individualmente e auditoria de criação,
-  alteração, exclusão e importação. Anexos (até 10 MB) ficam como arquivos em `sos-data/anexos/`.
+- **Desktop:** banco SQLite. Cada O.S., usuário e cadastro é gravado em sua própria linha, com
+  auditoria de criação, alteração, exclusão, importação e login (`audit_logs`). Anexos (até 10 MB)
+  ficam como arquivos em `sos-data/anexos/`. Obras ainda ficam num único registro JSON.
+
+### Atualizar a versão
+
+Basta substituir o `.exe` e manter a pasta `sos-data`. Ao abrir pela primeira vez a versão 0.6, o
+sistema faz um backup completo (`sos-data/backups/sos-antes-tabelas-...`) e move usuários e
+cadastros para as tabelas novas. A cópia antiga em JSON continua no banco; se a migração falhar, o
+sistema segue usando essa cópia.
 
 ### Modo portátil
 
@@ -65,8 +73,8 @@ remova o HD com o S.O.S aberto.
 
 ## Próximos passos
 
-1. Migrar cadastros e usuários do snapshot JSON para tabelas próprias no SQLite.
-2. Ampliar a auditoria para usuários, cadastros e autenticação.
+1. Migrar Obras para tabelas próprias.
+2. Tela para consultar a auditoria.
 3. Ampliar os testes (importação de planilha e regras de O.S.).
 
 As regras de negócio estão documentadas em [`docs/LOGICA-SISTEMA.md`](docs/LOGICA-SISTEMA.md).
