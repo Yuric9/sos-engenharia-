@@ -1,4 +1,3 @@
-import './brand-fix.css';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   LayoutDashboard,

@@ -171,11 +171,11 @@ const backup = readCode('src/pages/DataBackup.tsx');
 if (!backup.includes('Testar backup e restauração') || !backup.includes('runDesktopBackupSelfTest'))
   failures.push('DataBackup.tsx: botão/autoteste de restauração ausente');
 
-const css = readCode('src/brand-fix.css');
+const css = readCode('src/styles.css');
 if (!css.includes('.works-form'))
-  failures.push('brand-fix.css: estilo definitivo do formulário de Obras ausente');
+  failures.push('styles.css: estilo definitivo do formulário de Obras ausente');
 if (css.includes('section.detail-grid > article.panel:first-child p:nth-of-type'))
-  failures.push('brand-fix.css: hack antigo ainda pode esconder campos válidos de Obras');
+  failures.push('styles.css: hack antigo ainda pode esconder campos válidos de Obras');
 
 const login = readCode('src/pages/Login.tsx');
 if (login.includes('/prefeitura-trindade.png'))
