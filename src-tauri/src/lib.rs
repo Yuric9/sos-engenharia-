@@ -1,3 +1,4 @@
+mod audit_log;
 mod backup_verify;
 mod database;
 mod portable;
@@ -51,13 +52,15 @@ fn auth_login(login:String,password:String) -> Result<session::LoginResult,Strin
 #[tauri::command]
 fn auth_logout() { session::logout() }
 #[tauri::command]
+fn list_audit(entity:Option<String>,search:Option<String>,limit:i64,offset:i64) -> Result<Vec<audit_log::AuditEntry>,String> { session::require_admin()?; database::list_audit(entity.as_deref(),search.as_deref(),limit,offset) }
+#[tauri::command]
 fn auth_session() -> Option<i64> { session::current().map(|s|s.user_id) }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(){
     database::initialize().expect("não foi possível inicializar o banco S.O.S");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_mode,database_location,load_snapshot,save_snapshot,load_orders,save_order,delete_order,replace_orders,save_attachment,read_attachment,delete_attachment,open_attachment,backup_now,backup_self_test,auth_login,auth_logout,auth_session])
+        .invoke_handler(tauri::generate_handler![app_mode,database_location,load_snapshot,save_snapshot,load_orders,save_order,delete_order,replace_orders,save_attachment,read_attachment,delete_attachment,open_attachment,backup_now,backup_self_test,auth_login,auth_logout,auth_session,list_audit])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar S.O.S");
 }

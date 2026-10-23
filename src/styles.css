@@ -1763,3 +1763,26 @@ textarea:focus-visible {
     width: 100%;
   }
 }
+
+/* ==== Auditoria ==== */
+.audit-detail > td {
+  background: #fafcfb;
+  cursor: default;
+}
+.audit-changes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.audit-changes th,
+.audit-changes td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e3ebe5;
+  vertical-align: top;
+  word-break: break-word;
+}
+.audit-changes th {
+  color: var(--muted);
+  font-weight: 650;
+}
