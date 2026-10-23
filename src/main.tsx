@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { SOS_APP_MARK } from './brandIcon';
 import './styles.css';
-import './brand-fix.css';
 
 // index.html não define favicon: sem isto a aba do navegador/janela usa o ícone
 // genérico do navegador em vez da marca S.O.S. O SVG é embutido (data URI), então

@@ -35,7 +35,8 @@ cargo test --manifest-path src-tauri/Cargo.toml  # testes do backend Rust
 - **Web:** dados no `localStorage` do navegador; anexos limitados a 900 KB.
 - **Desktop:** banco SQLite. Cada O.S., usuário e cadastro é gravado em sua própria linha, com
   auditoria de criação, alteração, exclusão, importação e login (`audit_logs`). Anexos (até 10 MB)
-  ficam como arquivos em `sos-data/anexos/`. Obras ainda ficam num único registro JSON.
+  ficam como arquivos em `sos-data/anexos/`. Obras ainda ficam num único registro JSON. O Admin
+  consulta a auditoria na tela **Auditoria**.
 
 ### Atualizar a versão
 
@@ -74,7 +75,6 @@ remova o HD com o S.O.S aberto.
 ## Próximos passos
 
 1. Migrar Obras para tabelas próprias.
-2. Tela para consultar a auditoria.
-3. Ampliar os testes (importação de planilha e regras de O.S.).
+2. Ampliar os testes (importação de planilha e regras de O.S.).
 
 As regras de negócio estão documentadas em [`docs/LOGICA-SISTEMA.md`](docs/LOGICA-SISTEMA.md).

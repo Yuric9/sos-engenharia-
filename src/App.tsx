@@ -1,4 +1,3 @@
-import './brand-fix.css';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   LayoutDashboard,
@@ -11,6 +10,7 @@ import {
   Users,
   Building2,
   HardDrive,
+  ShieldCheck,
   FileSpreadsheet,
   HardHat,
 } from 'lucide-react';
@@ -25,6 +25,7 @@ import Reports from './pages/Reports';
 import ArchivedOrders from './pages/ArchivedOrders';
 import Works from './pages/Works';
 import DataBackup, { SosBackupFile } from './pages/DataBackup';
+import Auditoria from './pages/Auditoria';
 
 // A importação usa a biblioteca de planilhas (pesada) e só é aberta pelo Admin.
 const ImportSpreadsheet = lazy(() => import('./pages/ImportSpreadsheet'));
@@ -59,7 +60,8 @@ type View =
   | 'archived'
   | 'backup'
   | 'import'
-  | 'works';
+  | 'works'
+  | 'audit';
 export const OWN_TEAM = 'Mão de obra própria — Departamento de Engenharia';
 export const RP_NAME = 'RP CONSTRUÇÕES LOCAÇÕES E CONSULTORIA EIRELI';
 export const INOVART_NAME = 'INOVART COMÉRCIO DE EQUIPAMENTOS EIRELI EPP';
@@ -694,6 +696,18 @@ export default function App() {
                 Backup / Migração
               </button>
             )}
+            {isAdmin && (
+              <button
+                className={view === 'audit' ? 'active' : ''}
+                onClick={() => {
+                  setSelected(null);
+                  setView('audit');
+                }}
+              >
+                <ShieldCheck size={18} />
+                Auditoria
+              </button>
+            )}
           </nav>
           <button className="logout" onClick={signout}>
             <LogOut size={18} />
@@ -707,6 +721,8 @@ export default function App() {
             <Suspense fallback={<p className="hint">Carregando...</p>}>
               <ImportSpreadsheet orders={orders} onImport={importSpreadsheetOrders} />
             </Suspense>
+          ) : view === 'audit' && isAdmin ? (
+            <Auditoria />
           ) : view === 'backup' && isAdmin ? (
             <DataBackup
               orders={orders}

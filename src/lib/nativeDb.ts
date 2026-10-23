@@ -186,3 +186,13 @@ export async function desktopSessionUserId(): Promise<number | null> {
     return null;
   }
 }
+
+/** Registro de auditoria (só Admin). Lança erro com a mensagem do backend se recusado. */
+export async function listDesktopAudit<T>(
+  entity: string | null,
+  search: string,
+  limit: number,
+  offset: number
+): Promise<T[]> {
+  return invoke<T[]>('list_audit', { entity, search: search.trim() || null, limit, offset });
+}

@@ -201,7 +201,9 @@ pub fn save_snapshot_checked(key:&str,value_json:&str)->std::result::Result<(),S
     if !SNAPSHOT_KEYS.contains(&key){return Err("Tipo de dado desconhecido".into())}
     let exists=load_snapshot(key)?.is_some_and(|raw|raw.trim()!="[]");
     let actor=if exists{Some(session::require_admin()?.user_id)}else{session::current().map(|s|s.user_id)};
-    save_snapshot(key,value_json,actor,true)
+    // A carga inicial dos cadastros padrão não é auditada item por item (seriam centenas de
+    // "criações" sem autor); o primeiro administrador, sim.
+    save_snapshot(key,value_json,actor,exists||key==SNAPSHOT_USERS)
 }
 
 /// `with_audit` fica desligado só para as tentativas de login, que têm auditoria própria.
@@ -256,6 +258,11 @@ pub fn replace_orders(order_jsons:&[String],user_id:Option<i64>)->std::result::R
     tx.execute("DELETE FROM work_order_records",[]).map_err(|e|e.to_string())?;
     for (id,number,json) in validated{tx.execute("INSERT INTO work_order_records(id,number,order_json,updated_at) VALUES(?1,?2,?3,CURRENT_TIMESTAMP)",params![id,number,json]).map_err(|e|e.to_string())?;}
     audit(&tx,user_id,"IMPORT",None,None,None).map_err(|e|e.to_string())?; tx.commit().map_err(|e|e.to_string())?; Ok(())
+}
+
+pub fn list_audit(entity:Option<&str>,search:Option<&str>,limit:i64,offset:i64)->std::result::Result<Vec<crate::audit_log::AuditEntry>,String>{
+    let conn=open().map_err(|e|e.to_string())?;
+    crate::audit_log::query(&conn,entity,search,limit,offset)
 }
 
 pub fn database_location()->String { db_path().to_string_lossy().to_string() }
